@@ -1,0 +1,14 @@
+{
+  "name": "AgentBlue - AI Automation Solutions",
+  "short_name": "AgentBlue",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#4F7CFF",
+  "background_color": "#ffffff",
+  "display": "standalone"
+}

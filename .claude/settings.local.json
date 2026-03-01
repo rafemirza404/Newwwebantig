@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vite:*)",
+      "Bash(./node_modules/.bin/vite:*)",
+      "mcp__supabase__list_tables",
+      "Bash(cd \"/c/Users/mirza abdul rafe/new-website\" && npm install @supabase/supabase-js 2>&1)",
+      "mcp__supabase__apply_migration",
+      "Bash(cd \"/c/Users/mirza abdul rafe/new-website\" && npm run build 2>&1)",
+      "Bash(npm run:*)",
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(grep:*)",
+      "Bash(node:*)",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__get_publishable_keys",
+      "Bash(\"C:\\\\Users\\\\mirza abdul rafe\\\\new-website\\\\.env.local\":*)",
+      "Bash(wc:*)",
+      "mcp__supabase__list_migrations",
+      "mcp__supabase__get_logs",
+      "mcp__supabase__list_extensions",
+      "Bash(sed:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}
