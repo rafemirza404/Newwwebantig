@@ -1,18 +1,30 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "~/lib/supabase/server";
 import Sidebar from "~/components/dashboard/sidebar/Sidebar";
-import { isDemoMode, DEMO_PROFILE, DEMO_USER, DEMO_WORKSPACE } from "~/lib/mock/mockData";
+import { isDemoMode, DEMO_PROFILE, DEMO_WORKSPACE } from "~/lib/mock/mockData";
+import type { UserType } from "~/lib/supabase/client";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  // Read the view_mode cookie — this is the same source of truth the page uses
+  const cookieStore = cookies();
+  const cookieMode = cookieStore.get("view_mode")?.value;
+
   if (isDemoMode()) {
-    const userType = (DEMO_PROFILE.user_type) as "direct" | "agency_owner" | "team_member" | "client" | "super_admin";
+    // In demo mode: allow cookie to switch sidebar nav just like the page switches content
+    const effectiveUserType = (
+      cookieMode && ["direct", "agency_owner"].includes(cookieMode)
+        ? cookieMode
+        : DEMO_PROFILE.user_type
+    ) as UserType;
+
     return (
       <div className="flex h-screen bg-background text-foreground overflow-hidden">
         <Sidebar
-          userType={userType}
+          userType={effectiveUserType}
           userEmail={DEMO_PROFILE.email}
           userName={DEMO_PROFILE.full_name}
-          workspaceName={DEMO_WORKSPACE.name}
+          workspaceName={effectiveUserType === "agency_owner" ? DEMO_WORKSPACE.name : undefined}
         />
         <main className="flex-1 overflow-y-auto">
           {children}
@@ -30,25 +42,37 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("user_type, full_name, email")
+    .select("user_type, full_name, email, has_agency")
     .eq("id", user.id)
     .single();
 
-  const { data: workspace } = await supabase
-    .from("workspaces")
-    .select("name")
-    .eq("owner_id", user.id)
-    .maybeSingle();
+  const realUserType = (profile?.user_type ?? "direct") as UserType;
 
-  const userType = (profile?.user_type ?? "direct") as "direct" | "agency_owner" | "team_member" | "client" | "super_admin";
+  // Apply the same view_mode cookie the page uses — sidebar must match page content
+  const effectiveUserType = (
+    cookieMode && ["direct", "agency_owner"].includes(cookieMode)
+      ? cookieMode
+      : realUserType
+  ) as UserType;
+
+  // Only fetch workspace name if we're rendering the agency sidebar
+  let workspaceName: string | undefined;
+  if (effectiveUserType === "agency_owner") {
+    const { data: workspace } = await supabase
+      .from("workspaces")
+      .select("name")
+      .eq("owner_id", user.id)
+      .maybeSingle();
+    workspaceName = workspace?.name;
+  }
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <Sidebar
-        userType={userType}
+        userType={effectiveUserType}
         userEmail={profile?.email ?? user.email ?? ""}
         userName={profile?.full_name ?? ""}
-        workspaceName={workspace?.name}
+        workspaceName={workspaceName}
       />
       <main className="flex-1 overflow-y-auto">
         {children}

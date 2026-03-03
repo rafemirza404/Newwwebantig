@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import Image from "next/image";
-import { Building2, User } from "lucide-react";
+import { Building2 } from "lucide-react";
 
 type Step = "account" | "company";
 
@@ -56,6 +56,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
         data: {
           full_name: fullName,
           company_name: companyName,
@@ -173,41 +174,6 @@ export default function SignupPage() {
             <p className="text-muted-foreground text-[15px] mb-8 font-medium">This helps us personalise your experience</p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* User type */}
-              <div className="space-y-3">
-                <Label className="text-muted-foreground text-[13px] font-bold uppercase tracking-wider ml-1 block">I want to…</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setUserType("direct")}
-                    className={`p-5 rounded-2xl border text-left transition-all ${userType === "direct"
-                      ? "border-primary bg-primary/10 shadow-sm"
-                      : "border-border/20 bg-secondary/30 hover:border-border/50 hover:bg-secondary/50"
-                      }`}
-                  >
-                    <User className={`w-6 h-6 mb-3 ${userType === "direct" ? "text-primary" : "text-muted-foreground"}`} />
-                    <div className={`text-[15px] font-bold tracking-tight ${userType === "direct" ? "text-foreground" : "text-muted-foreground"}`}>
-                      Audit my business
-                    </div>
-                    <div className="text-[13px] text-muted-foreground/80 font-medium mt-1">I own or manage a business</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUserType("agency_owner")}
-                    className={`p-5 rounded-2xl border text-left transition-all ${userType === "agency_owner"
-                      ? "border-primary bg-primary/10 shadow-sm"
-                      : "border-border/20 bg-secondary/30 hover:border-border/50 hover:bg-secondary/50"
-                      }`}
-                  >
-                    <Building2 className={`w-6 h-6 mb-3 ${userType === "agency_owner" ? "text-primary" : "text-muted-foreground"}`} />
-                    <div className={`text-[15px] font-bold tracking-tight ${userType === "agency_owner" ? "text-foreground" : "text-muted-foreground"}`}>
-                      Manage clients
-                    </div>
-                    <div className="text-[13px] text-muted-foreground/80 font-medium mt-1">I run an agency</div>
-                  </button>
-                </div>
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="companyName" className="text-muted-foreground text-[13px] font-bold uppercase tracking-wider ml-1">Company name</Label>
                 <Input id="companyName" value={companyName} onChange={(e) => setCompanyName(e.target.value)} required
@@ -240,6 +206,33 @@ export default function SignupPage() {
                   <option value="other" className="bg-card">Other</option>
                 </select>
               </div>
+
+              {/* Optional agency mode */}
+              <button
+                type="button"
+                onClick={() => setUserType(userType === "agency_owner" ? "direct" : "agency_owner")}
+                className={`w-full flex items-center gap-3 p-4 rounded-2xl border text-left transition-all ${userType === "agency_owner"
+                  ? "border-primary/50 bg-primary/5"
+                  : "border-border/20 bg-secondary/20 hover:border-border/40"
+                  }`}
+              >
+                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${userType === "agency_owner" ? "bg-primary border-primary" : "border-border/50 bg-transparent"}`}>
+                  {userType === "agency_owner" && (
+                    <svg className="w-3 h-3 text-primary-foreground" viewBox="0 0 12 12" fill="none">
+                      <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Building2 className={`w-4 h-4 flex-shrink-0 ${userType === "agency_owner" ? "text-primary" : "text-muted-foreground"}`} />
+                    <span className={`text-[14px] font-semibold ${userType === "agency_owner" ? "text-foreground" : "text-muted-foreground"}`}>
+                      I also manage clients for others
+                    </span>
+                  </div>
+                  <p className="text-[12px] text-muted-foreground/70 mt-0.5 ml-6">Unlock agency features — run audits for multiple businesses</p>
+                </div>
+              </button>
 
               <div className="flex gap-4 pt-2">
                 <Button type="button" variant="outline"

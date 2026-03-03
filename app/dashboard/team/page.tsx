@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "~/lib/supabase/server";
 import TeamClient from "./_components/TeamClient";
 import { isDemoMode, DEMO_USER, DEMO_WORKSPACE, DEMO_TEAM_MEMBERS, DEMO_PENDING_INVITES } from "~/lib/mock/mockData";
@@ -26,11 +27,15 @@ export default async function TeamPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("user_type")
+    .select("user_type, has_agency")
     .eq("id", user.id)
     .single();
 
-  if (profile?.user_type !== "agency_owner") redirect("/dashboard");
+  const cookieStore = cookies();
+  const viewMode = cookieStore.get("view_mode")?.value;
+  const userType = profile?.user_type ?? "direct";
+  const effectiveType = (viewMode && ["direct", "agency_owner"].includes(viewMode)) ? viewMode : userType;
+  if (effectiveType !== "agency_owner" && !profile?.has_agency) redirect("/dashboard");
 
   const { data: workspace } = await supabase
     .from("workspaces")

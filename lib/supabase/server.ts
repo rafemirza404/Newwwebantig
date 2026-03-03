@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 export function createSupabaseServerClient() {
@@ -27,6 +28,22 @@ export function createSupabaseServerClient() {
           }
         },
       },
+    }
+  );
+}
+
+/**
+ * Token-based client for background pipeline jobs.
+ * Uses the user's JWT directly — no cookies, no service role key needed.
+ * Safe to call from fire-and-forget contexts after the HTTP response is sent.
+ */
+export function createSupabaseClientWithToken(accessToken: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      auth: { persistSession: false, autoRefreshToken: false },
     }
   );
 }

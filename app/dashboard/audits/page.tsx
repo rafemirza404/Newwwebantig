@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "~/lib/supabase/server";
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { isDemoMode, DEMO_AUDITS } from "~/lib/mock/mockData";
+import { isDemoMode, DEMO_DIRECT_AUDITS, DEMO_AGENCY_AUDITS } from "~/lib/mock/mockData";
 
 const STATUS_LABELS: Record<string, string> = {
   in_progress: "In Progress",
@@ -20,9 +21,13 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default async function AuditsPage() {
   let sessions: any[] = [];
+  let isAgency = false;
 
   if (isDemoMode()) {
-    sessions = DEMO_AUDITS;
+    const cookieStore = cookies();
+    const cookieMode = cookieStore.get("view_mode")?.value;
+    isAgency = cookieMode === "agency_owner";
+    sessions = isAgency ? DEMO_AGENCY_AUDITS : DEMO_DIRECT_AUDITS;
   } else {
     const supabase = createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -34,35 +39,68 @@ export default async function AuditsPage() {
       .eq("id", user.id)
       .single();
 
-    const { data } = await supabase
-      .from("audit_sessions")
-      .select("id, business_name, status, mode, started_at, completed_at, question_count")
-      .eq("user_id", user.id)
-      .order("started_at", { ascending: false });
+    // Respect view_mode cookie for page-level behavior
+    const cookieStore = cookies();
+    const cookieMode = cookieStore.get("view_mode")?.value;
+    const effectiveType = (cookieMode && ["direct", "agency_owner"].includes(cookieMode))
+      ? cookieMode
+      : (profile?.user_type ?? "direct");
 
-    sessions = data ?? [];
+    isAgency = effectiveType === "agency_owner";
+
+    if (isAgency) {
+      // Agency: fetch audits belonging to the workspace
+      const { data: workspace } = await supabase
+        .from("workspaces")
+        .select("id")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+
+      if (workspace) {
+        const { data } = await supabase
+          .from("audit_sessions")
+          .select("id, business_name, status, mode, started_at, completed_at, question_count")
+          .eq("workspace_id", workspace.id)
+          .order("started_at", { ascending: false });
+        sessions = data ?? [];
+      }
+    } else {
+      // Direct: fetch by user_id
+      const { data } = await supabase
+        .from("audit_sessions")
+        .select("id, business_name, status, mode, started_at, completed_at, question_count")
+        .eq("user_id", user.id)
+        .order("started_at", { ascending: false });
+      sessions = data ?? [];
+    }
   }
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-foreground text-[28px] font-bold tracking-tight">Audits</h1>
+          <h1 className="text-foreground text-[28px] font-bold tracking-tight">
+            {isAgency ? "All Audits" : "My Audits"}
+          </h1>
           <p className="text-muted-foreground text-sm mt-1">{sessions.length} total audits</p>
         </div>
         <Link
-          href="/audit/new"
+          href={isAgency ? "/dashboard/clients" : "/audit/new"}
           className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold flex-shrink-0 shadow-sm transition-colors rounded-full"
         >
           <Plus className="w-4 h-4 text-primary-foreground" />
-          New Audit
+          {isAgency ? "Select Client" : "New Audit"}
         </Link>
       </div>
 
       {sessions.length === 0 ? (
         <div className="bg-card border-none shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] rounded-2xl p-12 text-center">
           <p className="text-foreground font-medium mb-2">No audits yet</p>
-          <p className="text-muted-foreground text-sm mb-6">Start your first audit to get AI-powered business insights.</p>
+          <p className="text-muted-foreground text-sm mb-6">
+            {isAgency
+              ? "No audits have been run for your workspace clients yet."
+              : "Start your first audit to get AI-powered business insights."}
+          </p>
           <Link
             href="/audit/new"
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-full transition-colors"

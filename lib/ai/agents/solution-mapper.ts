@@ -1,23 +1,45 @@
 import OpenAI from "openai";
 import { z } from "zod";
-import { createSupabaseServerClient } from "~/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BusinessProfilerOutput } from "./business-profiler";
 import type { GapAnalyzerOutput, Gap } from "./gap-analyzer";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY ?? "" });
 
-const SYSTEM_PROMPT = `You are a senior AI automation architect. For a single automation gap, design the most specific, actionable solution possible.
+const SYSTEM_PROMPT = `You are a senior AI automation architect. Design a specific, actionable automation solution for a single gap.
 
-## TOOL PRIORITY RULES
-Priority 1: Can this be solved with tools they already have?
-Priority 2: Can this be solved by connecting two tools they already have?
-Priority 3: Is there a new tool that integrates with their existing stack?
-Priority 4: Does this require a fully new tool or stack?
+Tool priority: prefer tools they already have before recommending new ones.
 
-Always prefer existing tools first. Be specific — reference actual tool names, not generic categories.
+## CRITICAL: USE EXACTLY THESE JSON FIELD NAMES
 
-## OUTPUT
-Respond with valid JSON only — no markdown, no explanation.`;
+{
+  "gap_id": "<same gap_id from input>",
+  "solution_name": "<short solution name>",
+  "solution_description": "<1-2 sentence description>",
+  "uses_existing_tools": true,
+  "primary_tools": ["HubSpot", "Smartlead"],
+  "new_tools_required": [],
+  "why_these_tools": "<string: why these tools>",
+  "how_it_works": "<string: step by step how automation works>",
+  "implementation_complexity": "simple",
+  "estimated_setup_hours": 8,
+  "who_implements_this": "<string: who builds/manages this>",
+  "roi": {
+    "hours_saved_per_week": 5,
+    "cost_saved_per_year": 12000,
+    "breakeven_weeks": 4,
+    "additional_roi_notes": "<string>"
+  },
+  "reference_case_study": null
+}
+
+## RULES
+- implementation_complexity must be exactly "simple", "medium", or "complex"
+- uses_existing_tools must be a boolean (true or false)
+- primary_tools and new_tools_required must be arrays of strings
+- All numeric fields must be numbers (not strings)
+- reference_case_study: either null or an object with title, industry, problem, solution, result fields
+- No markdown, no explanation — JSON only.`;
 
 const SolutionSchema = z.object({
   gap_id: z.string(),
@@ -59,9 +81,8 @@ const SolutionMapperOutputSchema = z.object({
 export type SolutionMapperOutput = z.infer<typeof SolutionMapperOutputSchema>;
 export type Solution = z.infer<typeof SolutionSchema>;
 
-async function fetchCaseStudies(gapText: string, _businessFunction: string, _workspaceId: string | null): Promise<Array<{ title: string; industry: string; problem: string; solution: string; result: string }>> {
+async function fetchCaseStudies(gapText: string, _businessFunction: string, _workspaceId: string | null, supabase: SupabaseClient): Promise<Array<{ title: string; industry: string; problem: string; solution: string; result: string }>> {
   try {
-    const supabase = createSupabaseServerClient();
     // Simple text-based fallback (no embeddings yet)
     const { data } = await supabase
       .from("case_studies")
@@ -89,11 +110,13 @@ async function solveOneGap(params: {
   functionProfile: string;
   keyBusinessContext: string;
   workspaceId: string | null;
+  supabase: SupabaseClient;
 }): Promise<Solution> {
   const caseStudies = await fetchCaseStudies(
     `${params.gap.gap_name} ${params.gap.current_situation}`,
     params.gap.business_function,
     params.workspaceId,
+    params.supabase,
   );
 
   const caseStudyContext = caseStudies.length > 0
@@ -141,6 +164,7 @@ export async function runSolutionMapper(params: {
   profilerOutput: BusinessProfilerOutput;
   gapAnalyzerOutput: GapAnalyzerOutput;
   workspaceId: string | null;
+  supabase: SupabaseClient;
 }): Promise<SolutionMapperOutput> {
   console.log("[Pipeline] Agent 4 (SolutionMapper) starting...");
 
@@ -165,6 +189,7 @@ export async function runSolutionMapper(params: {
           functionProfile: fnProfile?.profile ?? "",
           keyBusinessContext,
           workspaceId: params.workspaceId,
+          supabase: params.supabase,
         });
       })
     );

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createSupabaseClient } from "~/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, User, Building2, ArrowRight, AlertCircle } from "lucide-react";
 import { isDemoMode, DEMO_PROFILE, DEMO_WORKSPACE, DEMO_USER } from "~/lib/mock/mockData";
 import { toast } from "sonner";
 
@@ -42,6 +42,16 @@ export default function SettingsPage() {
   const [industry, setIndustry] = useState("");
   const [userType, setUserType] = useState("");
 
+  // Account type
+  const [hasAgency, setHasAgency] = useState(false);
+  const [deactivatingAgency, setDeactivatingAgency] = useState(false);
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+
+  // Upgrade to agency
+  const [showUpgradeForm, setShowUpgradeForm] = useState(false);
+  const [upgradingAgency, setUpgradingAgency] = useState(false);
+  const [upgradeWsName, setUpgradeWsName] = useState("");
+
   // Workspace fields (agency only)
   const [workspace, setWorkspace] = useState<WorkspaceData | null>(null);
   const [wsName, setWsName] = useState("");
@@ -55,6 +65,8 @@ export default function SettingsPage() {
       setCompanyName(DEMO_PROFILE.company_name);
       setIndustry(DEMO_PROFILE.industry);
       setUserType(DEMO_PROFILE.user_type);
+      setHasAgency(DEMO_PROFILE.has_agency);
+      setUpgradeWsName(DEMO_PROFILE.company_name + " Agency");
       setWorkspace({
         id: DEMO_WORKSPACE.id,
         name: DEMO_WORKSPACE.name,
@@ -75,7 +87,7 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, company_name, industry, user_type")
+        .select("full_name, company_name, industry, user_type, has_agency")
         .eq("id", user.id)
         .single();
 
@@ -84,9 +96,12 @@ export default function SettingsPage() {
         setCompanyName(profile.company_name ?? "");
         setIndustry(profile.industry ?? "");
         setUserType(profile.user_type ?? "direct");
+        setHasAgency(profile.has_agency ?? false);
+        // Pre-fill upgrade workspace name with their company name
+        setUpgradeWsName((profile.company_name ?? "") + " Agency");
       }
 
-      if (profile?.user_type === "agency_owner") {
+      if (profile?.user_type === "agency_owner" || profile?.has_agency) {
         const { data: ws } = await supabase
           .from("workspaces")
           .select("id, name, logo_url, brand_color")
@@ -163,6 +178,74 @@ export default function SettingsPage() {
     if (error) setWorkspaceError(error.message);
     else { setSavedWorkspace(true); setTimeout(() => setSavedWorkspace(false), 3000); }
     setSaving(false);
+  };
+
+  const handleDeactivateAgency = async () => {
+    if (isDemoMode()) {
+      toast.info("Deactivate agency mode (demo)");
+      setShowDeactivateConfirm(false);
+      return;
+    }
+
+    setDeactivatingAgency(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ has_agency: false })
+      .eq("id", user.id);
+
+    if (error) {
+      toast.error("Failed to deactivate: " + error.message);
+    } else {
+      setHasAgency(false);
+      setShowDeactivateConfirm(false);
+      // Reset view_mode cookie to direct
+      await fetch("/api/dev/mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "direct" }),
+      });
+      toast.success("Agency mode deactivated. Your agency data is preserved.");
+    }
+    setDeactivatingAgency(false);
+  };
+
+  const handleUpgradeAgency = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!upgradeWsName.trim()) {
+      toast.error("Please enter a workspace name");
+      return;
+    }
+    setUpgradingAgency(true);
+
+    if (isDemoMode()) {
+      await new Promise((r) => setTimeout(r, 800));
+      setHasAgency(true);
+      setShowUpgradeForm(false);
+      toast.success("Agency mode activated! (demo)");
+      setUpgradingAgency(false);
+      return;
+    }
+
+    const res = await fetch("/api/upgrade/agency", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceName: upgradeWsName }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error ?? "Upgrade failed. Please try again.");
+      setUpgradingAgency(false);
+      return;
+    }
+
+    setHasAgency(true);
+    setShowUpgradeForm(false);
+    toast.success("Agency mode activated! Switch to Agency view from the dashboard.");
+    setUpgradingAgency(false);
   };
 
   if (loading) {
@@ -354,6 +437,146 @@ export default function SettingsPage() {
           </form>
         </div>
       )}
+
+      {/* Account Type */}
+      <div className="bg-card border-none shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] rounded-2xl p-6 mt-6">
+        <h2 className="text-foreground text-lg font-semibold mb-1">Account Type</h2>
+        <p className="text-muted-foreground text-sm mb-6">Manage your active modes and unlock new capabilities.</p>
+
+        {hasAgency ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 bg-secondary/50 rounded-xl">
+              <div className="flex items-center gap-2 flex-1">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <User className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <p className="text-foreground text-sm font-semibold">Direct Mode</p>
+                  <p className="text-muted-foreground text-xs">Audit your own business</p>
+                </div>
+              </div>
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">Active</span>
+            </div>
+
+            <div className="flex items-center gap-3 p-4 bg-secondary/50 rounded-xl">
+              <div className="flex items-center gap-2 flex-1">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Building2 className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <p className="text-foreground text-sm font-semibold">Agency Mode</p>
+                  <p className="text-muted-foreground text-xs">Manage and audit client businesses</p>
+                </div>
+              </div>
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">Active</span>
+            </div>
+
+            {!showDeactivateConfirm ? (
+              <button
+                onClick={() => setShowDeactivateConfirm(true)}
+                className="text-muted-foreground text-sm hover:text-destructive transition-colors underline"
+              >
+                Deactivate Agency Mode
+              </button>
+            ) : (
+              <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-xl">
+                <div className="flex items-start gap-3 mb-4">
+                  <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                  <p className="text-muted-foreground text-sm">
+                    Your agency workspace and client data will be <strong className="text-foreground">archived, not deleted</strong>. You can re-activate any time.
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowDeactivateConfirm(false)}
+                    className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeactivateAgency}
+                    disabled={deactivatingAgency}
+                    className="flex items-center gap-2 px-4 py-2 bg-destructive/10 border border-destructive/30 text-destructive text-sm font-semibold rounded-full hover:bg-destructive/20 transition-colors disabled:opacity-50"
+                  >
+                    {deactivatingAgency && <Loader2 className="w-3 h-3 animate-spin" />}
+                    Confirm Deactivate
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 bg-secondary/50 rounded-xl">
+              <div className="flex items-center gap-2 flex-1">
+                <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
+                  <User className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-foreground text-sm font-semibold">Direct Mode</p>
+                  <p className="text-muted-foreground text-xs">Audit your own business</p>
+                </div>
+              </div>
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary">Active</span>
+            </div>
+
+            <div className="flex items-center gap-3 p-4 bg-secondary/30 border border-border/30 rounded-xl">
+              <div className="flex items-center gap-2 flex-1">
+                <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
+                  <Building2 className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-sm font-semibold">Agency Mode</p>
+                  <p className="text-muted-foreground/60 text-xs">Manage and audit client businesses</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowUpgradeForm((v) => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-semibold rounded-full hover:bg-primary/90 transition-colors"
+              >
+                Unlock <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* Inline upgrade form */}
+            {showUpgradeForm && (
+              <div className="p-5 bg-primary/5 border border-primary/20 rounded-xl">
+                <p className="text-foreground text-sm font-semibold mb-0.5">Activate Agency Mode</p>
+                <p className="text-muted-foreground text-xs mb-4">Free trial — no billing required to get started.</p>
+                <form onSubmit={handleUpgradeAgency} className="space-y-3">
+                  <div>
+                    <label className="block text-muted-foreground text-xs mb-1">Workspace name</label>
+                    <input
+                      type="text"
+                      value={upgradeWsName}
+                      onChange={(e) => setUpgradeWsName(e.target.value)}
+                      placeholder="My Agency"
+                      className="w-full bg-secondary border-transparent text-foreground placeholder-muted-foreground focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-transparent rounded-xl px-4 py-2.5 text-sm transition-colors"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 pt-1">
+                    <button
+                      type="submit"
+                      disabled={upgradingAgency}
+                      className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold rounded-full shadow-sm transition-colors disabled:opacity-50"
+                    >
+                      {upgradingAgency && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      {upgradingAgency ? "Activating…" : "Activate Free Trial →"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowUpgradeForm(false)}
+                      className="text-muted-foreground text-sm hover:text-foreground transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Danger zone */}
       <div className="bg-card border border-destructive/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] rounded-2xl p-6 mt-6 relative overflow-hidden">

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, Circle, Clock, Target, Zap, ArrowUpRight, ListFilter } from "lucide-react";
 import ScoreBar from "~/components/dashboard/shared/ScoreBar";
 import { DashboardHeader } from "~/components/dashboard/shared/DashboardHeader";
@@ -12,6 +14,8 @@ interface DirectDashboardProps {
   sessions: any[];
   implItems: any[];
   plan: string;
+  hasAgency?: boolean;
+  currentMode?: "direct" | "agency_owner";
 }
 
 const FUNCTION_LABELS: Record<string, string> = {
@@ -33,13 +37,30 @@ const PRIORITY_LABELS: Record<string, string> = {
 
 const TABS = ["All", "To-Do", "In Progress", "Completed", "Reports"];
 
-export default function DirectDashboard({ firstName, email = "", latestReport, sessions, implItems, plan }: DirectDashboardProps) {
+type TabKey = "All" | "To-Do" | "In Progress" | "Completed" | "Reports";
+
+export default function DirectDashboard({ firstName, email = "", latestReport, sessions, implItems, plan, hasAgency, currentMode = "direct" }: DirectDashboardProps) {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<TabKey>("All");
+
   const hasAudit = sessions.length > 0;
   const score = latestReport?.overall_score ?? null;
-  const functionScores = latestReport?.function_scores ?? {};
+  const rawFunctionScores = latestReport?.function_scores ?? {};
+  const functionScores: Record<string, number> = Object.fromEntries(
+    Object.entries(rawFunctionScores).map(([k, v]) => [k, typeof v === "object" && v !== null ? ((v as any).score ?? 0) : (v as number)])
+  );
   const gaps = latestReport?.full_gaps ?? latestReport?.gaps_preview ?? [];
   const resolvedItems = implItems.filter((i) => i.status === "done").length;
   const totalTimeSaved = implItems.reduce((sum, i) => sum + (i.time_saved_hrs ?? 0), 0);
+
+  // Filter implItems by active tab
+  const filteredItems = (() => {
+    if (activeTab === "All") return implItems;
+    if (activeTab === "To-Do") return implItems.filter((i) => i.status === "not_started" || i.status === "pending");
+    if (activeTab === "In Progress") return implItems.filter((i) => i.status === "in_progress");
+    if (activeTab === "Completed") return implItems.filter((i) => i.status === "done");
+    return implItems; // Reports tab navigates, handled by onClick
+  })();
 
   // Build search items from sessions
   const searchItems = sessions.map((s) => ({
@@ -56,6 +77,14 @@ export default function DirectDashboard({ firstName, email = "", latestReport, s
     type: "audit" as const,
   }));
 
+  function handleTabClick(tab: TabKey) {
+    if (tab === "Reports") {
+      router.push("/dashboard/reports");
+    } else {
+      setActiveTab(tab);
+    }
+  }
+
   return (
     <div className="p-8 max-w-[1500px] mx-auto min-h-screen font-sans">
       <DashboardHeader
@@ -63,26 +92,73 @@ export default function DirectDashboard({ firstName, email = "", latestReport, s
         email={email}
         searchItems={searchItems}
         notifications={notifications}
+        hasAgency={hasAgency}
+        currentMode={currentMode}
       />
 
       {!hasAudit ? (
-        /* No audit yet — onboarding prompt */
-        <div className="bg-card shadow-card rounded-[32px] p-16 text-center border border-border mt-10 animate-fade-in hover-glow transition-smooth">
-          <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-8 border border-primary/20">
-            <Target className="w-10 h-10 text-primary" />
+        /* No audit yet — dashboard-style empty state */
+        <>
+          <div className="mb-10 animate-fade-in">
+            <h1 className="text-foreground text-[56px] leading-[1.1] font-medium tracking-tight mb-8">
+              Business<br />Overview
+            </h1>
           </div>
-          <h2 className="text-foreground text-3xl font-medium mb-4 tracking-tight">Run your first audit</h2>
-          <p className="text-muted-foreground text-base mb-10 max-w-lg mx-auto">
-            Answer 15 questions about your business and get an AI-powered report identifying automation gaps and real ROI opportunities.
-          </p>
-          <Link
-            href="/audit/new"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full transition-smooth shadow-glow hover:scale-105 text-lg"
-          >
-            <Zap className="w-5 h-5" />
-            Start My Audit — It&apos;s Free
-          </Link>
-        </div>
+
+          {/* Same 3-card grid, first card is the CTA */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            <div className="bg-primary rounded-[32px] p-7 text-primary-foreground flex flex-col justify-between relative min-h-[190px] shadow-glow animate-slide-up">
+              <p className="font-medium text-[15px]">Maturity Score</p>
+              <div className="mt-auto">
+                <p className="text-primary-foreground/70 text-sm mb-5">Run your first audit to get your AI-powered business score.</p>
+                <Link
+                  href="/audit/new"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white text-sm font-semibold rounded-full transition-smooth"
+                >
+                  <Zap className="w-4 h-4" /> Start First Audit
+                </Link>
+              </div>
+            </div>
+
+            <div className="bg-secondary rounded-[32px] p-7 text-foreground flex flex-col justify-between relative min-h-[190px] shadow-sm opacity-50 animate-slide-up" style={{ animationDelay: '50ms' }}>
+              <p className="font-medium text-[15px]">Gaps Found</p>
+              <div className="mt-8">
+                <p className="text-muted-foreground text-xs mb-1">Run an audit to discover gaps</p>
+                <h3 className="text-6xl font-medium tracking-tight text-muted-foreground leading-none">—</h3>
+              </div>
+            </div>
+
+            <div className="bg-card rounded-[32px] p-7 text-foreground flex flex-col justify-between relative min-h-[190px] shadow-card border border-border opacity-50 animate-slide-up" style={{ animationDelay: '100ms' }}>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 rounded-full border border-border flex items-center justify-center bg-secondary">
+                  <Clock className="w-5 h-5 text-foreground" />
+                </div>
+                <p className="font-medium text-[16px] leading-snug">Time &<br />Efficiency</p>
+              </div>
+              <div className="flex items-end justify-between mt-auto">
+                <div>
+                  <p className="text-muted-foreground text-[12px] mb-1">Time Saved Weekly</p>
+                  <h3 className="text-4xl font-medium tracking-tight text-muted-foreground">—<span className="text-xl ml-1">hrs</span></h3>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Lower section — empty */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+            <div className="xl:col-span-4 bg-card shadow-card rounded-[32px] p-7 border border-border opacity-50 animate-slide-up" style={{ animationDelay: '150ms' }}>
+              <h2 className="text-[18px] font-medium tracking-tight mb-6">Scores By Function</h2>
+              <p className="text-muted-foreground text-sm">Complete an audit to see your scores across 8 business functions.</p>
+            </div>
+            <div className="xl:col-span-8 bg-card shadow-card rounded-[32px] p-7 border border-border flex flex-col animate-slide-up" style={{ animationDelay: '200ms' }}>
+              <h2 className="text-[18px] font-medium tracking-tight mb-6">Recent Recommendations</h2>
+              <div className="flex-1 flex flex-col items-center justify-center py-10 opacity-50">
+                <Target className="w-10 h-10 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground text-sm text-center max-w-xs">Your personalised automation recommendations will appear here after your first audit.</p>
+              </div>
+            </div>
+          </div>
+        </>
       ) : (
         <>
           {/* Hero section */}
@@ -93,12 +169,25 @@ export default function DirectDashboard({ firstName, email = "", latestReport, s
 
             {/* Pill Tabs */}
             <div className="flex space-x-3 overflow-x-auto pb-4 scrollbar-hide">
-              <button className="px-6 py-2.5 rounded-full bg-foreground text-background font-medium text-[15px] whitespace-nowrap transition-transform hover:scale-105 active:scale-95 shadow-sm">
+              <button
+                onClick={() => setActiveTab("All")}
+                className={`px-6 py-2.5 rounded-full font-medium text-[15px] whitespace-nowrap transition-smooth ${activeTab === "All" ? "bg-foreground text-background shadow-sm" : "bg-secondary text-muted-foreground hover:bg-foreground hover:text-background"}`}
+              >
                 Dashboard
               </button>
               {TABS.map((tab) => (
-                <button key={tab} className="px-6 py-2.5 rounded-full bg-secondary text-muted-foreground hover:bg-foreground hover:text-background font-medium text-[15px] whitespace-nowrap transition-smooth">
+                <button
+                  key={tab}
+                  onClick={() => handleTabClick(tab as TabKey)}
+                  className={`px-6 py-2.5 rounded-full font-medium text-[15px] whitespace-nowrap transition-smooth ${activeTab === tab ? "bg-foreground text-background shadow-sm" : "bg-secondary text-muted-foreground hover:bg-foreground hover:text-background"}`}
+                >
                   {tab}
+                  {tab === "Completed" && resolvedItems > 0 && (
+                    <span className="ml-1.5 text-xs opacity-70">({resolvedItems})</span>
+                  )}
+                  {tab === "In Progress" && implItems.filter((i) => i.status === "in_progress").length > 0 && (
+                    <span className="ml-1.5 text-xs opacity-70">({implItems.filter((i) => i.status === "in_progress").length})</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -110,9 +199,13 @@ export default function DirectDashboard({ firstName, email = "", latestReport, s
             {/* Primary Color Card - Maturity Score */}
             <div className="bg-primary rounded-[32px] p-7 text-primary-foreground flex flex-col justify-between relative min-h-[190px] shadow-glow hover-lift animate-slide-up" style={{ animationDelay: '50ms' }}>
               <p className="font-medium text-[15px]">Maturity Score</p>
-              <div className="absolute top-6 right-6 w-12 h-12 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm cursor-pointer hover:scale-105 transition-smooth">
+              <Link
+                href="/dashboard/analytics"
+                className="absolute top-6 right-6 w-12 h-12 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm cursor-pointer hover:scale-105 transition-smooth"
+                title="View score analytics"
+              >
                 <ArrowUpRight className="w-5 h-5 text-white" />
-              </div>
+              </Link>
               <div className="mt-8">
                 <p className="text-primary-foreground/80 font-semibold text-xs tracking-wide mb-1 flex items-center gap-1">
                   <span className="text-[14px]">{score !== null && score >= 70 ? "Great shape" : "Needs attention"}</span>
@@ -121,12 +214,16 @@ export default function DirectDashboard({ firstName, email = "", latestReport, s
               </div>
             </div>
 
-            {/* Secondary Card - Pending Audits */}
+            {/* Secondary Card - Gaps Found */}
             <div className="bg-secondary rounded-[32px] p-7 text-foreground flex flex-col justify-between relative min-h-[190px] shadow-sm hover-lift animate-slide-up" style={{ animationDelay: '100ms' }}>
               <p className="font-medium text-[15px]">Gaps Found</p>
-              <div className="absolute top-6 right-6 w-12 h-12 bg-background rounded-full flex items-center justify-center shadow-sm cursor-pointer hover:scale-105 transition-smooth border border-border">
+              <Link
+                href="/dashboard/progress"
+                className="absolute top-6 right-6 w-12 h-12 bg-background rounded-full flex items-center justify-center shadow-sm cursor-pointer hover:scale-105 transition-smooth border border-border"
+                title="View implementation progress"
+              >
                 <ArrowUpRight className="w-5 h-5 text-foreground" />
-              </div>
+              </Link>
               <div className="mt-8">
                 <p className="text-primary font-semibold text-xs tracking-wide mb-1 flex items-center gap-1">
                   {resolvedItems > 0 ? `${resolvedItems} resolved` : "Start implementing"}
@@ -135,16 +232,20 @@ export default function DirectDashboard({ firstName, email = "", latestReport, s
               </div>
             </div>
 
-            {/* Card Component - Details */}
+            {/* Card Component - Time & Efficiency */}
             <div className="bg-card rounded-[32px] p-7 text-foreground flex flex-col justify-between relative min-h-[190px] lg:col-span-1 md:col-span-2 shadow-card hover-lift border border-border animate-slide-up" style={{ animationDelay: '150ms' }}>
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-12 h-12 rounded-full border border-border flex items-center justify-center bg-secondary">
                   <Clock className="w-5 h-5 text-foreground" />
                 </div>
                 <p className="font-medium text-[16px] leading-snug">Time &<br />Efficiency</p>
-                <div className="ml-auto w-12 h-12 bg-background border border-border rounded-full flex items-center justify-center shadow-sm cursor-pointer hover:scale-105 transition-smooth">
+                <Link
+                  href="/dashboard/progress"
+                  className="ml-auto w-12 h-12 bg-background border border-border rounded-full flex items-center justify-center shadow-sm cursor-pointer hover:scale-105 transition-smooth"
+                  title="View progress"
+                >
                   <ArrowUpRight className="w-5 h-5 text-foreground" />
-                </div>
+                </Link>
               </div>
 
               <div className="flex items-end justify-between mt-auto">
@@ -160,7 +261,7 @@ export default function DirectDashboard({ firstName, email = "", latestReport, s
 
               {/* Progress bar line */}
               <div className="w-full h-1 bg-secondary rounded-full mt-5 overflow-hidden flex border border-border/50">
-                <div className="h-full bg-primary rounded-l-full" style={{ width: `${Math.min(100, Math.max(5, (resolvedItems / (gaps.length || 1)) * 100))}%` }}></div>
+                <div className="h-full bg-primary rounded-l-full" style={{ width: `${Math.min(100, Math.max(gaps.length > 0 ? 5 : 0, (resolvedItems / (gaps.length || 1)) * 100))}%` }}></div>
               </div>
             </div>
 
@@ -173,9 +274,13 @@ export default function DirectDashboard({ firstName, email = "", latestReport, s
             <div className="xl:col-span-4 bg-card shadow-card rounded-[32px] p-7 text-foreground border border-border hover-glow transition-smooth animate-slide-up" style={{ animationDelay: '200ms' }}>
               <div className="flex items-center justify-between mb-8 z-10 relative">
                 <h2 className="text-[18px] font-medium tracking-tight">Scores By Function</h2>
-                <div className="w-10 h-10 bg-secondary border border-border rounded-full flex items-center justify-center shadow-sm cursor-pointer hover:scale-105 transition-smooth">
+                <Link
+                  href="/dashboard/analytics"
+                  className="w-10 h-10 bg-secondary border border-border rounded-full flex items-center justify-center shadow-sm cursor-pointer hover:scale-105 transition-smooth"
+                  title="View full analytics"
+                >
                   <ArrowUpRight className="w-[18px] h-[18px] text-foreground" />
-                </div>
+                </Link>
               </div>
 
               {Object.keys(functionScores).length === 0 ? (
@@ -195,18 +300,34 @@ export default function DirectDashboard({ firstName, email = "", latestReport, s
 
             {/* Recommendations table */}
             <div className="xl:col-span-8 bg-card shadow-card rounded-[32px] p-7 text-foreground border border-border overflow-hidden flex flex-col hover-glow transition-smooth animate-slide-up" style={{ animationDelay: '250ms' }}>
-              <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+              <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
                 <div className="flex items-center gap-4 mr-auto">
                   <div className="w-12 h-12 rounded-full border border-border bg-secondary flex items-center justify-center">
                     <ListFilter className="w-5 h-5 text-foreground" />
                   </div>
                   <h2 className="text-[18px] tracking-tight font-medium">Recent Recommendations</h2>
                 </div>
+                <Link href="/dashboard/progress" className="text-xs text-primary hover:underline font-medium">
+                  View all →
+                </Link>
               </div>
 
-              {implItems.length === 0 ? (
+              {/* Active tab context label */}
+              {activeTab !== "All" && (
+                <div className="mb-4 px-1">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Showing: {activeTab} ({filteredItems.length})
+                  </span>
+                </div>
+              )}
+
+              {filteredItems.length === 0 ? (
                 <div className="p-8 text-center border-t border-border/50 flex-1 flex flex-col items-center justify-center">
-                  <p className="text-muted-foreground text-sm">Complete an audit to get personalised recommendations.</p>
+                  <p className="text-muted-foreground text-sm">
+                    {implItems.length === 0
+                      ? "Complete an audit to get personalised recommendations."
+                      : `No items in "${activeTab}" status.`}
+                  </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto flex-1">
@@ -220,7 +341,7 @@ export default function DirectDashboard({ firstName, email = "", latestReport, s
                       </tr>
                     </thead>
                     <tbody className="text-foreground">
-                      {implItems.slice(0, 7).map((item) => (
+                      {filteredItems.slice(0, 7).map((item) => (
                         <tr key={item.id} className="group transition-smooth hover:bg-secondary/50 rounded-lg">
                           <td className="px-2 py-3 rounded-l-lg">
                             <div className="flex items-center gap-3">

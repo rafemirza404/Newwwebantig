@@ -14,6 +14,10 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Capture the access token NOW (while still in request context) to pass to pipeline
+  const { data: { session: authSession } } = await supabase.auth.getSession();
+  const accessToken = authSession?.access_token ?? "";
+
   // Validate input
   let body: z.infer<typeof CompleteSchema>;
   try {
@@ -61,27 +65,58 @@ export async function POST(req: NextRequest) {
     .update({ status: "processing", pipeline_stage: "starting" })
     .eq("id", sessionId);
 
-  // Create an empty report placeholder so we have an ID to poll
-  const { data: report, error: reportError } = await supabase
+  // Check if a report placeholder already exists (handles retry after pipeline failure)
+  const { data: existingReport } = await supabase
     .from("reports")
-    .insert({
-      session_id: sessionId,
-      user_id: user.id,
-      overall_score: 0,
-      function_scores: {},
-      business_summary: "",
-      gaps_preview: [],
-      full_gaps: [],
-      solutions: [],
-      roi_analysis: {},
-    })
     .select("id")
+    .eq("session_id", sessionId)
     .single();
 
-  if (reportError || !report) {
-    console.error("[Complete] Failed to create report placeholder:", reportError);
-    await supabase.from("audit_sessions").update({ status: "in_progress" }).eq("id", sessionId);
-    return NextResponse.json({ error: "Failed to initialise report" }, { status: 500 });
+  let reportId: string;
+
+  if (existingReport) {
+    // Reuse existing placeholder — pipeline will overwrite it
+    reportId = existingReport.id;
+  } else {
+    const { data: newReport, error: reportError } = await supabase
+      .from("reports")
+      .insert({
+        session_id: sessionId,
+        user_id: user.id,
+        overall_score: 0,
+        function_scores: {},
+        business_summary: "",
+        gaps_preview: [],
+        full_gaps: [],
+        solutions: [],
+        roi_analysis: {},
+      })
+      .select("id")
+      .single();
+
+    if (reportError || !newReport) {
+      // Race condition: another request created the report between our check and insert
+      if (reportError?.code === "23505") {
+        const { data: racedReport } = await supabase
+          .from("reports")
+          .select("id")
+          .eq("session_id", sessionId)
+          .single();
+        if (racedReport) {
+          reportId = racedReport.id;
+        } else {
+          console.error("[Complete] Could not recover from race condition");
+          await supabase.from("audit_sessions").update({ status: "in_progress", pipeline_stage: null }).eq("id", sessionId);
+          return NextResponse.json({ error: "Failed to initialise report" }, { status: 500 });
+        }
+      } else {
+        console.error("[Complete] Failed to create report placeholder:", reportError);
+        await supabase.from("audit_sessions").update({ status: "in_progress", pipeline_stage: null }).eq("id", sessionId);
+        return NextResponse.json({ error: "Failed to initialise report" }, { status: 500 });
+      }
+    } else {
+      reportId = newReport.id;
+    }
   }
 
   // Fire-and-forget pipeline — import and run without awaiting
@@ -90,8 +125,9 @@ export async function POST(req: NextRequest) {
       runPipeline({
         sessionId,
         userId: user.id,
-        reportId: report.id,
+        reportId,
         workspaceId: session.workspace_id ?? null,
+        accessToken,
       }).catch((err: unknown) => {
         console.error("[Complete] Pipeline fatal error:", err);
       });
@@ -101,5 +137,5 @@ export async function POST(req: NextRequest) {
     });
 
   // Immediately return processing status to client
-  return NextResponse.json({ status: "processing", reportId: report.id });
+  return NextResponse.json({ status: "processing", reportId });
 }

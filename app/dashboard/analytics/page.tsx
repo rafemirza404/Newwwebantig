@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "~/lib/supabase/server";
 import StatCard from "~/components/dashboard/shared/StatCard";
-import { isDemoMode, DEMO_AUDITS, DEMO_REPORTS } from "~/lib/mock/mockData";
+import { isDemoMode, DEMO_AGENCY_AUDITS, DEMO_DIRECT_AUDITS, DEMO_REPORTS, DEMO_PROFILE } from "~/lib/mock/mockData";
 
 const FUNCTION_LABELS: Record<string, string> = {
   sales: "Sales", marketing: "Marketing", operations: "Operations",
@@ -13,36 +14,97 @@ export default async function AnalyticsPage() {
   let totalAudits = 0;
   let completedAudits = 0;
   let reports: any[] = [];
+  let isAgency = false;
+
+  const cookieStore = cookies();
+  const viewMode = cookieStore.get("view_mode")?.value;
 
   if (isDemoMode()) {
-    totalAudits = DEMO_AUDITS.length;
-    completedAudits = DEMO_AUDITS.filter(a => a.status === "complete").length;
+    isAgency = viewMode === "agency_owner" || DEMO_PROFILE.user_type === "agency_owner";
+    const demoAudits = isAgency ? DEMO_AGENCY_AUDITS : DEMO_DIRECT_AUDITS;
+    totalAudits = demoAudits.length;
+    completedAudits = demoAudits.filter(a => a.status === "complete").length;
     reports = DEMO_REPORTS;
   } else {
     const supabase = createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect("/login?redirectTo=/dashboard/analytics");
 
-    const { count: tc } = await supabase
-      .from("audit_sessions")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("user_type, has_agency")
+      .eq("id", user.id)
+      .single();
 
-    const { count: cc } = await supabase
-      .from("audit_sessions")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .eq("status", "complete");
+    const userType = profile?.user_type ?? "direct";
+    const effectiveType = (viewMode && ["direct", "agency_owner"].includes(viewMode)) ? viewMode : userType;
+    isAgency = effectiveType === "agency_owner";
 
-    const { data: rpts } = await supabase
-      .from("reports")
-      .select("overall_score, function_scores, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+    if (isAgency) {
+      // Fetch workspace, then query by workspace_id
+      const { data: workspace } = await supabase
+        .from("workspaces")
+        .select("id")
+        .eq("owner_id", user.id)
+        .maybeSingle();
 
-    totalAudits = tc ?? 0;
-    completedAudits = cc ?? 0;
-    reports = rpts ?? [];
+      if (workspace) {
+        const { count: tc } = await supabase
+          .from("audit_sessions")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", workspace.id);
+
+        const { count: cc } = await supabase
+          .from("audit_sessions")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", workspace.id)
+          .eq("status", "complete");
+
+        // Get session IDs for this workspace, then fetch reports
+        const { data: sessions } = await supabase
+          .from("audit_sessions")
+          .select("id")
+          .eq("workspace_id", workspace.id);
+
+        const sessionIds = (sessions ?? []).map((s: any) => s.id);
+
+        const { data: rpts } = sessionIds.length > 0
+          ? await supabase
+            .from("reports")
+            .select("overall_score, function_scores, created_at")
+            .in("session_id", sessionIds)
+            .order("created_at", { ascending: false })
+          : { data: [] };
+
+        totalAudits = tc ?? 0;
+        completedAudits = cc ?? 0;
+        reports = rpts ?? [];
+      }
+    } else {
+      // Direct mode — query by user_id
+      const { count: tc } = await supabase
+        .from("audit_sessions")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("workspace_id", null);
+
+      const { count: cc } = await supabase
+        .from("audit_sessions")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("workspace_id", null)
+        .eq("status", "complete");
+
+      const { data: rpts } = await supabase
+        .from("reports")
+        .select("overall_score, function_scores, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      totalAudits = tc ?? 0;
+      completedAudits = cc ?? 0;
+      reports = rpts ?? [];
+    }
   }
 
   const avgScore = reports.length > 0
@@ -52,9 +114,10 @@ export default async function AnalyticsPage() {
   // Aggregate function gaps across all reports
   const functionGapCounts: Record<string, number> = {};
   reports.forEach((r: any) => {
-    const scores = r.function_scores as Record<string, number> ?? {};
+    const scores = r.function_scores as Record<string, number | { score?: number }> ?? {};
     Object.entries(scores).forEach(([fn, score]) => {
-      if ((score as number) < 40) {
+      const numScore = typeof score === "object" ? ((score as { score?: number })?.score ?? 0) : (score as number);
+      if (numScore < 40) {
         functionGapCounts[fn] = (functionGapCounts[fn] ?? 0) + 1;
       }
     });
@@ -68,14 +131,13 @@ export default async function AnalyticsPage() {
     <div className="p-6 max-w-[1400px] mx-auto">
       <div className="mb-8">
         <h1 className="text-foreground text-[28px] font-bold tracking-tight">Analytics</h1>
-        <p className="text-muted-foreground text-sm mt-1">Insights across all your audits</p>
+        <p className="text-muted-foreground text-sm mt-1">
+          {isAgency ? "Insights across all client audits" : "Insights across all your audits"}
+        </p>
       </div>
 
       <div className="grid grid-cols-3 gap-5 mb-8">
-        <StatCard
-          label="TOTAL AUDITS"
-          value={totalAudits}
-        />
+        <StatCard label="TOTAL AUDITS" value={totalAudits} />
         <StatCard
           label="COMPLETED AUDITS"
           value={completedAudits}

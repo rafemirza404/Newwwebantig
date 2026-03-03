@@ -7,9 +7,9 @@ interface ScoreBarProps {
 }
 
 function getScoreColor(score: number) {
-  if (score >= 70) return "var(--success)";
-  if (score >= 40) return "var(--info)";
-  return "var(--danger)";
+  if (score >= 70) return "hsl(var(--primary))";
+  if (score >= 40) return "#F59E0B";
+  return "hsl(var(--destructive))";
 }
 
 export default function ScoreBar({ label, score, maxScore = 100 }: ScoreBarProps) {

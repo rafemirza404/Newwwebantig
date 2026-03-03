@@ -6,11 +6,74 @@ import type { SolutionMapperOutput } from "./solution-mapper";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY ?? "" });
 
-const SYSTEM_PROMPT = `You are a senior business consultant and report writer. Your job is to assemble a complete, polished automation audit report from structured analytical data.
+const SYSTEM_PROMPT = `You are a senior business consultant and report writer. Assemble a polished automation audit report from structured analytical data.
 
-Write in a confident, consultative voice. Be specific — use the business name, reference their actual tools, cite actual numbers from the data. Write for a non-technical business owner who wants to understand their situation clearly and feel excited about the opportunity.
+Write in a confident, consultative voice. Be specific — use the business name, reference their actual tools, cite actual numbers.
 
-OUTPUT: Respond with valid JSON only — no markdown fences, no explanation.`;
+## CRITICAL: USE EXACTLY THESE JSON FIELD NAMES
+
+{
+  "section_1_business_snapshot": {
+    "headline": "<one-line headline>",
+    "narrative": "<2-3 paragraph business snapshot>"
+  },
+  "section_2_maturity_score": {
+    "overall_score": 42,
+    "score_headline": "<one-line score summary>",
+    "score_narrative": "<2-3 paragraph score explanation>"
+  },
+  "section_3_gaps": {
+    "total_gaps_found": 6,
+    "total_weekly_hours_lost": 20,
+    "total_annual_cost": 48000,
+    "gaps_overview_narrative": "<2 paragraph overview of gaps>",
+    "gaps_free_preview": [
+      { "name": "<gap name>", "one_line_problem": "<one sentence>" }
+    ],
+    "teaser_gap": {
+      "name": "<gap name>",
+      "severity": "high",
+      "current_situation": "<string>",
+      "why_this_matters": "<string>"
+    },
+    "gaps_full": [
+      {
+        "gap_id": "gap_001",
+        "gap_name": "<name>",
+        "business_function": "sales",
+        "severity": "high",
+        "current_situation": "<string>",
+        "affected_team_members": "<string>",
+        "time_cost_per_week_hours": 5,
+        "estimated_annual_cost": 12000,
+        "why_this_matters": "<string>",
+        "priority_rank": 1
+      }
+    ]
+  },
+  "section_4_blueprints": {
+    "blueprints_intro_narrative": "<2 paragraph intro to solutions>"
+  },
+  "section_5_roi": {
+    "roi_headline": "<one-line ROI summary>",
+    "roi_narrative": "<2 paragraph ROI explanation>"
+  },
+  "section_7_roadmap": {
+    "roadmap_intro": "<1 paragraph intro>",
+    "quick_wins": [
+      { "solution_name": "<name>", "gap_name": "<gap name>", "estimated_setup_hours": 8 }
+    ],
+    "medium_term": [
+      { "solution_name": "<name>", "gap_name": "<gap name>", "estimated_setup_hours": 20 }
+    ],
+    "strategic": [
+      { "solution_name": "<name>", "gap_name": "<gap name>", "estimated_setup_hours": 40 }
+    ],
+    "roadmap_closing": "<1 paragraph closing>"
+  }
+}
+
+No markdown fences, no explanation — JSON only.`;
 
 const ReportContentSchema = z.object({
   section_1_business_snapshot: z.object({

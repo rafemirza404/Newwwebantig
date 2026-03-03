@@ -226,8 +226,8 @@ export default function Sidebar({ userType, userEmail, userName, workspaceName }
             {/* Subtle glow behind */}
             <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 blur-xl rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
 
-            <button onClick={() => setShowUpgrade(false)} className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors z-10">
-              <X className="w-3 h-3" />
+            <button onClick={() => setShowUpgrade(false)} className="absolute top-2.5 right-2.5 w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors z-10 rounded-full hover:bg-secondary">
+              <X className="w-3.5 h-3.5" />
             </button>
 
             <div className="flex items-center gap-2 mb-2 relative z-10">
@@ -240,10 +240,10 @@ export default function Sidebar({ userType, userEmail, userName, workspaceName }
               Upgrade to Pro and elevate your experience today
             </p>
             <div className="flex items-center justify-between relative z-10">
-              <Link href="/pricing" className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5">
+              <Link href="/dashboard/billing" className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5">
                 <Zap className="w-3 h-3" /> Upgrade
               </Link>
-              <Link href="/pricing" className="text-muted-foreground text-xs hover:text-foreground underline">
+              <Link href="/dashboard/billing" className="text-muted-foreground text-xs hover:text-foreground underline">
                 Learn more
               </Link>
             </div>

@@ -14,6 +14,7 @@ export const DEMO_PROFILE = {
     company_name: "AgentBlue",
     email: "mirza@agentblue.ai",
     user_type: "agency_owner" as const,
+    has_agency: true,
     industry: "solar",
     plan: "growth",
     stripe_id: "cus_demo_123",
@@ -40,7 +41,14 @@ export const DEMO_CLIENTS = [
     { id: "cl-008", business_name: "HomeTech HVAC", contact_email: "anita@hometech.com", industry: "home_services", company_size: "1-10", created_at: "2026-02-22T10:00:00Z" },
 ];
 
-export const DEMO_AUDITS = [
+// Direct user audits — no workspace, tied to user_id only
+export const DEMO_DIRECT_AUDITS = [
+    { id: "au-dir-001", business_name: "AgentBlue", status: "complete", mode: "saas", started_at: "2026-01-10T10:00:00Z", completed_at: "2026-01-10T11:00:00Z", question_count: 15, workspace_id: null, user_id: "demo-user-001" },
+    { id: "au-dir-002", business_name: "AgentBlue", status: "in_progress", mode: "saas", started_at: "2026-02-20T10:00:00Z", completed_at: null, question_count: 7, workspace_id: null, user_id: "demo-user-001" },
+];
+
+// Agency audits — tied to workspace_id, run for clients
+export const DEMO_AGENCY_AUDITS = [
     { id: "au-001", business_name: "Greenlight Solar", status: "complete", mode: "solar", started_at: "2026-01-16T10:00:00Z", completed_at: "2026-01-16T11:00:00Z", question_count: 15, workspace_id: "ws-demo-001", user_id: "demo-user-001" },
     { id: "au-002", business_name: "Arctic HVAC Solutions", status: "complete", mode: "hvac", started_at: "2026-01-22T10:00:00Z", completed_at: "2026-01-22T11:30:00Z", question_count: 15, workspace_id: "ws-demo-001", user_id: "demo-user-001" },
     { id: "au-003", business_name: "SunPeak Energy", status: "in_progress", mode: "solar", started_at: "2026-02-01T10:00:00Z", completed_at: null, question_count: 8, workspace_id: "ws-demo-001", user_id: "demo-user-001" },
@@ -48,6 +56,9 @@ export const DEMO_AUDITS = [
     { id: "au-005", business_name: "BrightWatt Installs", status: "processing", mode: "solar", started_at: "2026-02-18T10:00:00Z", completed_at: null, question_count: 15, workspace_id: "ws-demo-001", user_id: "demo-user-001" },
     { id: "au-006", business_name: "ProTemp Services", status: "in_progress", mode: "hvac", started_at: "2026-02-25T10:00:00Z", completed_at: null, question_count: 4, workspace_id: "ws-demo-001", user_id: "demo-user-001" },
 ];
+
+// Combined — for pages that don't need to differentiate (e.g. analytics)
+export const DEMO_AUDITS = [...DEMO_DIRECT_AUDITS, ...DEMO_AGENCY_AUDITS];
 
 export const DEMO_REPORTS = [
     {

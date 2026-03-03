@@ -20,6 +20,7 @@ Ask targeted, intelligent questions that surface automation opportunities. Every
 ## IMPORTANT RULES
 - Do NOT assume all 8 functions exist in every business. Detect which are relevant from the conversation.
 - Ask ONE focused, open-ended question at a time (not multiple choice).
+- NEVER repeat or rephrase a question that already appears in the Q&A history — always move forward.
 - Use the business name to feel personalised.
 - Questions should be conversational and easy to answer (not technical).
 - Drill deeper when an answer reveals a specific manual process or inefficiency.
@@ -73,7 +74,11 @@ export interface QAEntry {
 }
 
 function buildSlidingWindow(allAnswers: QAEntry[]): string {
-  if (allAnswers.length === 0) return "(No questions asked yet — generate the first question)";
+  // Strip out the synthetic __START__ initialisation entry
+  const answers = allAnswers.filter((a) => a.question !== "__START__" && a.answer !== "__START__");
+  if (answers.length === 0) return "(No questions asked yet — generate the first question)";
+  // shadow parameter name for the rest of the function
+  allAnswers = answers;
 
   const recentCount = 4;
   const recent = allAnswers.slice(-recentCount);
@@ -223,13 +228,16 @@ Generate the next question.`;
         const sepIdx = fullBuffer.indexOf(META_SEP);
         if (sepIdx !== -1) {
           const metaStr = fullBuffer.slice(sepIdx + META_SEP.length).trim();
+          // Use fullBuffer.slice(0, sepIdx) as the canonical question text — this is definitively
+          // the text before the separator, regardless of how partial-separator tokens accumulated
+          const cleanQuestionText = fullBuffer.slice(0, sepIdx).trim();
           try {
             const meta = JSON.parse(metaStr) as AgentMeta;
-            send({ type: "complete", questionText: questionText.trim(), meta });
+            send({ type: "complete", questionText: cleanQuestionText, meta });
           } catch {
             send({
               type: "complete",
-              questionText: questionText.trim(),
+              questionText: cleanQuestionText,
               meta: {
                 question_category: "general",
                 is_complete: false,

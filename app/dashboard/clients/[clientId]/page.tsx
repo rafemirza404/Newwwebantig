@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "~/lib/supabase/server";
 import { isDemoMode, DEMO_CLIENTS, DEMO_AUDITS } from "~/lib/mock/mockData";
 import Link from "next/link";
-import { ArrowLeft, Mail, Globe, Building, Clock, ClipboardList, ArrowUpRight } from "lucide-react";
+import { ArrowLeft, Mail, Globe, Building, Clock, ClipboardList, ArrowUpRight, Plus } from "lucide-react";
 
 export default async function ClientDetailPage({ params }: { params: { clientId: string } }) {
     let client: any = null;
@@ -57,9 +57,12 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
                     </h1>
                     <p className="text-[#2DD48A] text-[18px] tracking-wide font-medium">{client.industry || "No Industry Specified"}</p>
                 </div>
-                <button className="bg-white hover:bg-white/90 text-black px-6 py-2.5 rounded-full font-semibold transition-colors flex items-center gap-2 shadow-sm">
-                    New Audit <ArrowUpRight className="w-4 h-4" />
-                </button>
+                <Link
+                    href={`/audit/agency/new?clientId=${client.id}`}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2.5 rounded-full font-semibold transition-colors flex items-center gap-2 shadow-sm"
+                >
+                    <Plus className="w-4 h-4" /> New Audit
+                </Link>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

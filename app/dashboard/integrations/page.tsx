@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "~/lib/supabase/server";
 import { isDemoMode } from "~/lib/mock/mockData";
 
@@ -77,11 +78,16 @@ export default async function IntegrationsPage() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("user_type")
+      .select("user_type, has_agency")
       .eq("id", user.id)
       .single();
 
-    if (profile?.user_type !== "agency_owner") redirect("/dashboard");
+    const cookieStore = cookies();
+    const viewMode = cookieStore.get("view_mode")?.value;
+    const userType = profile?.user_type ?? "direct";
+    const effectiveType = (viewMode && ["direct", "agency_owner"].includes(viewMode)) ? viewMode : userType;
+    // Allow agency_owner users and direct users who have unlocked agency mode and are viewing in agency mode
+    if (effectiveType !== "agency_owner" && !profile?.has_agency) redirect("/dashboard");
   }
 
   return (

@@ -10,7 +10,14 @@ export function createSupabaseClient() {
 
   client = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        // Bypass Navigator LockManager — it times out on slow/unstable connections.
+        // Safe for single-tab use; worst case on multi-tab is two parallel token refreshes.
+        lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<unknown>) => fn(),
+      },
+    }
   );
 
   return client;

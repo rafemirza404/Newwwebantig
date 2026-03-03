@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "~/lib/supabase/server";
+import { createSupabaseClientWithToken } from "~/lib/supabase/server";
 import { runBusinessProfiler } from "./business-profiler";
 import { runGapAnalyzer } from "./gap-analyzer";
 import { runSolutionMapper } from "./solution-mapper";
@@ -6,15 +6,15 @@ import { runReportAssembler } from "./report-assembler";
 import { runDiagramArchitect } from "./diagram-architect";
 import { runFinalCompiler } from "./final-compiler";
 
-async function updatePipelineStage(sessionId: string, stage: string) {
-  const supabase = createSupabaseServerClient();
+async function updatePipelineStage(sessionId: string, stage: string, token: string) {
+  const supabase = createSupabaseClientWithToken(token);
   await supabase
     .from("audit_sessions")
     .update({ pipeline_stage: stage })
     .eq("id", sessionId);
 }
 
-async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, label: string, sessionId: string, token: string): Promise<T> {
   try {
     return await fn();
   } catch (firstErr) {
@@ -22,7 +22,13 @@ async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
     try {
       return await fn();
     } catch (secondErr) {
-      console.error(`[Pipeline] ${label} failed on retry.`, secondErr);
+      const errMsg = secondErr instanceof Error ? secondErr.message : String(secondErr);
+      console.error(`[Pipeline] ${label} failed on retry: ${errMsg}`);
+      // Write the specific failing agent to the DB so we can diagnose without terminal access
+      await createSupabaseClientWithToken(token)
+        .from("audit_sessions")
+        .update({ pipeline_stage: `${label.toLowerCase()}_failed` })
+        .eq("id", sessionId);
       throw secondErr;
     }
   }
@@ -39,12 +45,16 @@ export async function runPipeline(params: {
   userId: string;
   reportId: string;
   workspaceId: string | null;
+  accessToken: string;
 }): Promise<void> {
-  const { sessionId, userId, reportId, workspaceId } = params;
+  const { sessionId, userId, reportId, workspaceId, accessToken } = params;
   console.log(`[Pipeline] Starting for session ${sessionId}, report ${reportId}`);
 
-  const supabase = createSupabaseServerClient();
+  // Use token-based client — safe in fire-and-forget background context.
+  // Cookies are gone after HTTP response is sent; the JWT captured before response works fine.
+  const supabase = createSupabaseClientWithToken(accessToken);
 
+  try {
   // Load all answers + session data
   const [{ data: session }, { data: answers }] = await Promise.all([
     supabase
@@ -78,7 +88,7 @@ export async function runPipeline(params: {
 
   try {
     // ── Agent 2 — Business Profiler ─────────────────────────────────────────
-    await updatePipelineStage(sessionId, "business_profiler");
+    await updatePipelineStage(sessionId, "business_profiler", accessToken);
     const profilerOutput = await withRetry(
       () => runBusinessProfiler({
         businessName: session.business_name,
@@ -87,29 +97,29 @@ export async function runPipeline(params: {
         qaTranscript,
         detectedToolStack,
       }),
-      "Agent2"
+      "Agent2", sessionId, accessToken
     );
 
     // ── Agent 3 — Gap Analyzer ──────────────────────────────────────────────
-    await updatePipelineStage(sessionId, "gap_analyzer");
+    await updatePipelineStage(sessionId, "gap_analyzer", accessToken);
     const gapAnalyzerOutput = await withRetry(
       () => runGapAnalyzer(profilerOutput),
-      "Agent3"
+      "Agent3", sessionId, accessToken
     );
 
     // ── Agent 4 — Solution Mapper ───────────────────────────────────────────
-    await updatePipelineStage(sessionId, "solution_mapper");
+    await updatePipelineStage(sessionId, "solution_mapper", accessToken);
     const solutionMapperOutput = await withRetry(
-      () => runSolutionMapper({ profilerOutput, gapAnalyzerOutput, workspaceId }),
-      "Agent4"
+      () => runSolutionMapper({ profilerOutput, gapAnalyzerOutput, workspaceId, supabase }),
+      "Agent4", sessionId, accessToken
     );
 
     // ── Agents 5 & 6 — Parallel ────────────────────────────────────────────
-    await updatePipelineStage(sessionId, "assembling");
+    await updatePipelineStage(sessionId, "assembling", accessToken);
     const [reportAssemblerOutput, diagrams] = await Promise.all([
       withRetry(
         () => runReportAssembler({ profilerOutput, gapAnalyzerOutput, solutionMapperOutput }),
-        "Agent5"
+        "Agent5", sessionId, accessToken
       ),
       withRetry(
         () => runDiagramArchitect({
@@ -117,12 +127,12 @@ export async function runPipeline(params: {
           gaps: gapAnalyzerOutput.gaps,
           solutions: solutionMapperOutput.solutions,
         }),
-        "Agent6"
+        "Agent6", sessionId, accessToken
       ),
     ]);
 
     // ── Agent 7 — Final Compiler ────────────────────────────────────────────
-    await updatePipelineStage(sessionId, "final_compiler");
+    await updatePipelineStage(sessionId, "final_compiler", accessToken);
     await withRetry(
       () => runFinalCompiler({
         sessionId,
@@ -133,16 +143,29 @@ export async function runPipeline(params: {
         solutionMapperOutput,
         reportAssemblerOutput,
         diagrams,
+        supabase,
       }),
-      "Agent7"
+      "Agent7", sessionId, accessToken
     );
 
     console.log(`[Pipeline] Complete for session ${sessionId}`);
-  } catch (err) {
-    console.error(`[Pipeline] Fatal error for session ${sessionId}:`, err);
+  } catch (innerErr) {
+    console.error(`[Pipeline] Fatal error for session ${sessionId}:`, innerErr);
     await supabase
       .from("audit_sessions")
       .update({ status: "in_progress", pipeline_stage: "failed" })
       .eq("id", sessionId);
+  }
+  } catch (outerErr) {
+    console.error(`[Pipeline] Startup error for session ${sessionId}:`, outerErr);
+    // Best-effort: try to mark as failed using the token we have
+    try {
+      await createSupabaseClientWithToken(accessToken)
+        .from("audit_sessions")
+        .update({ status: "in_progress", pipeline_stage: "failed" })
+        .eq("id", sessionId);
+    } catch {
+      // Nothing more we can do
+    }
   }
 }

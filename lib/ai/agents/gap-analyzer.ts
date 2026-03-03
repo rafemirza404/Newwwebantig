@@ -4,14 +4,52 @@ import type { BusinessProfilerOutput } from "./business-profiler";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY ?? "" });
 
-const SYSTEM_PROMPT = `You are a senior automation gap analyst. Identify every automation gap across all detected business functions, score each by severity and automation potential, calculate real time and cost impact, and rank all gaps by priority.
+const SYSTEM_PROMPT = `You are a senior automation gap analyst. Identify automation gaps across all detected business functions.
 
-An automation gap is any process that is currently done manually when it could be automated, repeated on a schedule when it could be event-driven, or consuming significant time from high-value team members for low-value repetitive work.
+An automation gap is any process done manually when it could be automated, repeated on a schedule when it could be event-driven, or consuming significant time for low-value repetitive work.
 
-Maturity scoring baselines (generic size-based): Small (1-10): 35/100, Mid (11-50): 50/100, Enterprise (50+): 65/100
+Maturity scoring baselines: Small (1-10): 35/100, Mid (11-50): 50/100, Enterprise (50+): 65/100
 Score status: "below" (>10 points below baseline), "on_par" (within 10), "above" (>10 above)
 
-Generate 4-8 gaps. Respond with valid JSON only — no markdown.`;
+## CRITICAL: USE EXACTLY THESE JSON FIELD NAMES
+
+{
+  "overall_maturity_score": 42,
+  "function_scores": {
+    "sales": {
+      "score": 40,
+      "industry_average": 50,
+      "status": "below",
+      "score_rationale": "<string explaining the score>"
+    }
+  },
+  "gaps": [
+    {
+      "gap_id": "gap_001",
+      "gap_name": "<short name of the gap>",
+      "business_function": "sales",
+      "current_situation": "<string: what they do manually now>",
+      "affected_team_members": "<string: who is affected>",
+      "time_cost_per_week_hours": 5,
+      "estimated_annual_cost": 12000,
+      "severity": "high",
+      "automation_potential": "high",
+      "why_this_matters": "<string: business impact>",
+      "priority_rank": 1
+    }
+  ],
+  "total_estimated_weekly_hours_lost": 20,
+  "total_estimated_annual_cost": 48000,
+  "gap_analysis_narrative": "<string: 2-3 paragraph summary of overall findings>"
+}
+
+## RULES
+- Generate 4-8 gaps
+- severity and automation_potential must be exactly "high", "medium", or "low"
+- status must be exactly "below", "on_par", or "above"
+- function_scores: one entry per detected function only
+- All numeric fields must be numbers (not strings)
+- No markdown, no explanation — JSON only.`;
 
 const GapSchema = z.object({
   gap_id: z.string(),
@@ -72,7 +110,7 @@ ${Object.entries(context.function_profiles).map(([fn, p]) => `## ${fn}\n${p?.pro
 
 Cross-function observations: ${context.cross_function_observations}
 
-Generate the complete gap analysis JSON.`;
+Generate the complete gap analysis JSON using EXACTLY the field names shown in the system prompt.`;
 
   const response = await client.chat.completions.create({
     model: "gpt-4o",
@@ -86,7 +124,12 @@ Generate the complete gap analysis JSON.`;
 
   const text = response.choices[0]?.message?.content?.trim() ?? "";
   const parsed = GapAnalyzerOutputSchema.safeParse(JSON.parse(text));
-  if (!parsed.success) throw new Error("GapAnalyzer output validation failed");
+
+  if (!parsed.success) {
+    console.error("[Agent3] Invalid output shape:", parsed.error.flatten());
+    console.error("[Agent3] Raw response (first 500):", text.slice(0, 500));
+    throw new Error("GapAnalyzer output validation failed");
+  }
 
   console.log("[Pipeline] Agent 3 complete. Gaps found:", parsed.data.gaps.length);
   return parsed.data;

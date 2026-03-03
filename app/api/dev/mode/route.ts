@@ -9,12 +9,12 @@ export async function POST(req: Request) {
 
   const res = NextResponse.json({ ok: true });
   if (mode === "clear") {
-    res.cookies.delete("dev_mode_override");
+    res.cookies.delete("view_mode");
   } else {
-    res.cookies.set("dev_mode_override", mode, {
+    res.cookies.set("view_mode", mode, {
       path: "/",
       httpOnly: false,
-      maxAge: 60 * 60 * 24, // 24 hours
+      maxAge: 60 * 60 * 24 * 30, // 30 days — persists across sessions
     });
   }
   return res;

@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "~/lib/supabase/server";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { BusinessProfilerOutput } from "./business-profiler";
 import type { GapAnalyzerOutput } from "./gap-analyzer";
 import type { SolutionMapperOutput } from "./solution-mapper";
@@ -52,7 +52,7 @@ async function buildComparisonData(params: {
   userId: string;
   currentReportId: string;
   currentScore: number;
-  supabase: ReturnType<typeof createSupabaseServerClient>;
+  supabase: SupabaseClient;
 }): Promise<FinalReport["comparison"]> {
   const { data: previousReport } = await params.supabase
     .from("reports")
@@ -95,10 +95,11 @@ export async function runFinalCompiler(params: {
   solutionMapperOutput: SolutionMapperOutput;
   reportAssemblerOutput: ReportAssemblerOutput;
   diagrams: Diagram[];
+  supabase: SupabaseClient;
 }): Promise<void> {
   console.log("[Pipeline] Agent 7 (FinalCompiler) starting...");
 
-  const supabase = createSupabaseServerClient();
+  const supabase = params.supabase;
   const content = params.reportAssemblerOutput;
   const gaps = params.gapAnalyzerOutput;
   const solutions = params.solutionMapperOutput;
@@ -192,8 +193,18 @@ export async function runFinalCompiler(params: {
     closing: content.section_7_roadmap.roadmap_closing,
   };
 
-  // Persist to reports table
-  const { error: updateError } = await supabase
+  // Persist to reports table — use service role if available to bypass RLS in background jobs
+  const writeClient: SupabaseClient = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { persistSession: false, autoRefreshToken: false } }
+      )
+    : supabase;
+
+  console.log("[Agent7] Writing report to DB. reportId:", params.reportId);
+
+  const { error: updateError, data: updatedRows } = await writeClient
     .from("reports")
     .update({
       overall_score: gaps.overall_maturity_score,
@@ -208,7 +219,7 @@ export async function runFinalCompiler(params: {
       roi_analysis: {
         estimated_hrs_saved_monthly: Math.round(solutions.total_roi_summary.total_hours_saved_per_week * 4),
         potential_revenue_lift: content.section_5_roi.roi_headline,
-        payback_period: `${Math.round(solutions.total_roi_summary.total_setup_hours_required / solutions.total_roi_summary.total_hours_saved_per_week)} weeks`,
+        payback_period: `${Math.round(solutions.total_roi_summary.total_setup_hours_required / (solutions.total_roi_summary.total_hours_saved_per_week || 1))} weeks`,
         total_hrs_saved_monthly: Math.round(solutions.total_roi_summary.total_hours_saved_per_week * 4),
         total_cost_saved_per_year: solutions.total_roi_summary.total_cost_saved_per_year,
         roi_narrative: solutions.total_roi_summary.overall_roi_narrative,
@@ -219,15 +230,26 @@ export async function runFinalCompiler(params: {
       total_roi_summary: solutions.total_roi_summary,
       comparison_data: comparison,
     })
-    .eq("id", params.reportId);
+    .eq("id", params.reportId)
+    .select("id");
 
   if (updateError) {
     console.error("[Agent7] Failed to update report:", updateError);
-    throw new Error("FinalCompiler failed to persist report");
+    throw new Error(`FinalCompiler failed to persist report: ${updateError.message}`);
   }
 
+  if (!updatedRows || updatedRows.length === 0) {
+    console.error("[Agent7] Update matched 0 rows. reportId:", params.reportId, "— RLS or missing row?");
+    // Verify the row exists
+    const { data: check } = await writeClient.from("reports").select("id, user_id").eq("id", params.reportId).single();
+    console.error("[Agent7] Row check:", check);
+    throw new Error("FinalCompiler: report update affected 0 rows");
+  }
+
+  console.log("[Agent7] Report written successfully.");
+
   // Mark session complete
-  await supabase
+  await writeClient
     .from("audit_sessions")
     .update({ status: "complete", completed_at: new Date().toISOString(), pipeline_stage: "complete" })
     .eq("id", params.sessionId);
@@ -236,7 +258,7 @@ export async function runFinalCompiler(params: {
 
   // Fire report-ready email (non-blocking)
   try {
-    const { data: userProfile } = await supabase
+    const { data: userProfile } = await writeClient
       .from("profiles")
       .select("email")
       .eq("id", params.userId)

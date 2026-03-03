@@ -54,8 +54,10 @@ export default function AuditSession({
   const [processingStep, setProcessingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const pollingRef = useRef<boolean>(false);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const currentQuestionTextRef = useRef("");
@@ -78,20 +80,27 @@ export default function AuditSession({
     return () => clearInterval(interval);
   }, [processing]);
 
-  // On mount (if resuming in progress session), request first question from server
+  // On mount — fetch next question for both fresh starts and resumed sessions
   useEffect(() => {
     if (startProcessing) {
       pollStatus();
       return;
     }
-    if (initialAnswerCount === 0) {
-      // Fresh start — request the first question
-      fetchFirstQuestion();
-    }
+    fetchFirstQuestion();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchFirstQuestion = async () => {
+  const scheduleRetry = useCallback((fn: () => void, delayMs: number) => {
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    setRetrying(true);
+    retryTimerRef.current = setTimeout(() => {
+      setRetrying(false);
+      setError(null);
+      fn();
+    }, delayMs);
+  }, []);
+
+  const fetchFirstQuestion = useCallback(async (attempt = 0) => {
     setIsStreaming(true);
     setStreamingText("");
     setError(null);
@@ -112,10 +121,17 @@ export default function AuditSession({
       await readSSEStream(res, -1);
     } catch (err) {
       console.error("[AuditSession] First question error:", err);
-      setError("Failed to start audit. Please refresh.");
       setIsStreaming(false);
+      if (attempt < 4) {
+        const delay = Math.min(2000 * (attempt + 1), 8000);
+        setError(`Connection issue — retrying in ${delay / 1000}s…`);
+        scheduleRetry(() => fetchFirstQuestion(attempt + 1), delay);
+      } else {
+        setError("Can't reach the server. Check your connection and refresh.");
+      }
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, scheduleRetry]);
 
   const pollStatus = useCallback(async () => {
     if (pollingRef.current) return;
@@ -135,6 +151,9 @@ export default function AuditSession({
         const data = await res.json();
         if (data.status === "complete" && data.reportId) {
           router.push(`/report/${data.reportId}`);
+        } else if (data.status === "failed") {
+          setError("Report generation failed. Please try again from your dashboard.");
+          pollingRef.current = false;
         } else {
           setTimeout(poll, 3000);
         }
@@ -246,7 +265,7 @@ export default function AuditSession({
     }
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async (attempt = 0) => {
     if (submitting || isStreaming || !answerText.trim()) return;
     setSubmitting(true);
     setError(null);
@@ -256,7 +275,8 @@ export default function AuditSession({
     const questionToSubmit = currentQuestionTextRef.current || questionText;
     const categoryToSubmit = currentCategory;
 
-    setAnswerText("");
+    // Only clear the textarea on the first attempt so the answer isn't lost on retry
+    if (attempt === 0) setAnswerText("");
 
     try {
       const res = await fetch("/api/audit/answer", {
@@ -275,15 +295,25 @@ export default function AuditSession({
       await readSSEStream(res, orderToSubmit);
     } catch (err) {
       console.error("[AuditSession] Submit error:", err);
-      setError("Something went wrong. Please try again.");
       setSubmitting(false);
+      if (attempt < 4) {
+        const delay = Math.min(2000 * (attempt + 1), 8000);
+        setError(`Connection issue — retrying in ${delay / 1000}s…`);
+        // Restore the answer to the textarea so the user can see it / re-edit
+        setAnswerText(answer);
+        scheduleRetry(() => handleSubmit(attempt + 1), delay);
+      } else {
+        setError("Can't reach the server. Your answer is still in the box — try submitting again.");
+        setAnswerText(answer);
+      }
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submitting, isStreaming, answerText, questionText, currentCategory, sessionId, scheduleRetry]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit();
+      handleSubmit(0);
     }
   };
 
@@ -425,11 +455,11 @@ export default function AuditSession({
                   style={{ minHeight: "80px", maxHeight: "300px", overflow: "auto" }}
                 />
                 <button
-                  onClick={handleSubmit}
-                  disabled={!answerText.trim() || submitting}
+                  onClick={() => handleSubmit()}
+                  disabled={!answerText.trim() || submitting || retrying}
                   className="absolute bottom-4 right-4 w-9 h-9 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
                 >
-                  {submitting ? (
+                  {submitting || retrying ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Send className="w-4 h-4" />
@@ -439,8 +469,8 @@ export default function AuditSession({
             )}
 
             {error && (
-              <p className="text-destructive font-medium text-sm text-center mt-4 bg-destructive/10 py-3 rounded-xl relative z-10">
-                {error}
+              <p className={`font-medium text-sm text-center mt-4 py-3 rounded-xl relative z-10 ${retrying ? "text-amber-500 bg-amber-500/10" : "text-destructive bg-destructive/10"}`}>
+                {retrying ? <Loader2 className="w-3 h-3 animate-spin inline mr-1.5" /> : null}{error}
               </p>
             )}
           </div>

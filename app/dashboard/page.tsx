@@ -4,12 +4,12 @@ import { createSupabaseServerClient } from "~/lib/supabase/server";
 import AgencyDashboard from "~/components/dashboard/agency/AgencyDashboard";
 import DirectDashboard from "~/components/dashboard/direct/DirectDashboard";
 import type { UserType } from "~/lib/supabase/client";
-import { isDemoMode, DEMO_PROFILE, DEMO_CLIENTS, DEMO_AUDITS, DEMO_REPORTS, DEMO_IMPL_ITEMS, DEMO_WORKSPACE } from "~/lib/mock/mockData";
+import { isDemoMode, DEMO_PROFILE, DEMO_CLIENTS, DEMO_DIRECT_AUDITS, DEMO_AGENCY_AUDITS, DEMO_REPORTS, DEMO_IMPL_ITEMS, DEMO_WORKSPACE } from "~/lib/mock/mockData";
 
 export default async function DashboardPage({ searchParams }: { searchParams: { mode?: string } }) {
   if (isDemoMode()) {
     const cookieStore = cookies();
-    const cookieMode = cookieStore.get("dev_mode_override")?.value;
+    const cookieMode = cookieStore.get("view_mode")?.value;
     const rawMode = searchParams?.mode ?? cookieMode;
     const effectiveUserType = (rawMode && ["direct", "agency_owner"].includes(rawMode))
       ? rawMode as UserType
@@ -21,10 +21,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
           firstName={DEMO_PROFILE.full_name.split(" ")[0]}
           email={DEMO_PROFILE.email}
           activeClients={DEMO_CLIENTS.length}
-          pendingAudits={DEMO_AUDITS.filter(a => ["in_progress", "processing"].includes(a.status)).length}
+          pendingAudits={DEMO_AGENCY_AUDITS.filter(a => ["in_progress", "processing"].includes(a.status)).length}
           clients={DEMO_CLIENTS.slice(0, 10)}
-          recentAudits={DEMO_AUDITS.slice(0, 10)}
+          recentAudits={DEMO_AGENCY_AUDITS.slice(0, 10)}
           workspaceId={DEMO_WORKSPACE.id}
+          hasAgency={DEMO_PROFILE.has_agency}
+          currentMode="agency_owner"
         />
       );
     }
@@ -34,9 +36,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
         firstName={DEMO_PROFILE.full_name.split(" ")[0]}
         email={DEMO_PROFILE.email}
         latestReport={DEMO_REPORTS[0]}
-        sessions={DEMO_AUDITS.slice(0, 5)}
+        sessions={DEMO_DIRECT_AUDITS.slice(0, 5)}
         implItems={DEMO_IMPL_ITEMS}
         plan={DEMO_PROFILE.plan}
+        hasAgency={DEMO_PROFILE.has_agency}
+        currentMode="direct"
       />
     );
   }
@@ -52,14 +56,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
     .eq("id", user.id)
     .single();
 
+  // Haven't completed onboarding yet — redirect regardless of how they got here
+  if (!profile?.onboarding_completed_at) redirect("/onboarding");
+
   const userType = profile?.user_type ?? "direct";
+  // Mode switcher only shown for direct users who have explicitly unlocked agency mode.
+  // Pure agency_owner users (signed up as agency) only have one mode — no switcher needed.
+  // Existing agency_owner users who want the switcher must go through the unlock flow (settings).
+  const hasAgency = userType === "direct" && (profile?.has_agency ?? false);
 
   // Client portal users go to /portal instead
   if (userType === "client") redirect("/portal");
 
-  // Dev mode override: searchParams takes priority, then cookie, then real user_type
+  // View mode: searchParams takes priority, then cookie, then real user_type
   const cookieStore = cookies();
-  const cookieMode = cookieStore.get("dev_mode_override")?.value;
+  const cookieMode = cookieStore.get("view_mode")?.value;
   const rawMode = searchParams?.mode ?? cookieMode;
   const effectiveUserType = (rawMode && ["direct", "agency_owner"].includes(rawMode))
     ? rawMode as UserType
@@ -116,6 +127,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
         clients={clients ?? []}
         recentAudits={audits ?? []}
         workspaceId={workspace?.id}
+        hasAgency={hasAgency}
+        currentMode="agency_owner"
       />
     );
   }
@@ -153,6 +166,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
       sessions={sessions ?? []}
       implItems={implItems ?? []}
       plan={profile?.plan ?? "free"}
+      hasAgency={hasAgency}
+      currentMode={effectiveUserType === "agency_owner" ? "agency_owner" : "direct"}
     />
   );
 }

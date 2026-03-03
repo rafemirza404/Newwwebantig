@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search, Bell, Settings, LogOut, X, ChevronRight, Clock } from "lucide-react";
+import { Search, Bell, Settings, LogOut, X, ChevronRight, Clock, Building2, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "~/lib/supabase/client";
@@ -22,6 +22,10 @@ interface DashboardHeaderProps {
     /** Recent activity for the notification bell */
     notifications?: Notification[];
     onSearchChange?: (query: string) => void;
+    /** Show mode switcher pill — only when user has both direct + agency modes */
+    hasAgency?: boolean;
+    /** Current active view mode */
+    currentMode?: "direct" | "agency_owner";
 }
 
 export function DashboardHeader({
@@ -31,11 +35,14 @@ export function DashboardHeader({
     searchItems = [],
     notifications = [],
     onSearchChange,
+    hasAgency = false,
+    currentMode = "direct",
 }: DashboardHeaderProps) {
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [bellOpen, setBellOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
+    const [switchingMode, setSwitchingMode] = useState(false);
 
     const searchRef = useRef<HTMLDivElement>(null);
     const bellRef = useRef<HTMLDivElement>(null);
@@ -86,8 +93,49 @@ export function DashboardHeader({
         router.push("/login");
     }
 
+    async function handleModeSwitch(mode: "direct" | "agency_owner") {
+        if (mode === currentMode || switchingMode) return;
+        setSwitchingMode(true);
+        await fetch("/api/dev/mode", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode }),
+        });
+        router.push("/dashboard");
+        router.refresh();
+        setSwitchingMode(false);
+    }
+
     return (
         <div className="flex justify-end items-center mb-10 gap-3 relative z-50">
+
+            {/* Mode switcher pill — shown only when user has both modes */}
+            {hasAgency && (
+                <div className="flex items-center bg-secondary rounded-full p-1 gap-0.5 mr-1">
+                    <button
+                        onClick={() => handleModeSwitch("direct")}
+                        disabled={switchingMode}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${currentMode === "direct"
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                            }`}
+                    >
+                        <User className="w-3 h-3" />
+                        Business
+                    </button>
+                    <button
+                        onClick={() => handleModeSwitch("agency_owner")}
+                        disabled={switchingMode}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${currentMode === "agency_owner"
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                            }`}
+                    >
+                        <Building2 className="w-3 h-3" />
+                        Agency
+                    </button>
+                </div>
+            )}
 
             {/* Search */}
             <div ref={searchRef} className="relative">
