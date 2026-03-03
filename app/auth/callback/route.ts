@@ -14,25 +14,40 @@ export async function GET(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          get(name: string) {
+          get(name) {
             return cookieStore.get(name)?.value;
           },
-          set(name: string, value: string, options) {
+          set(name, value, options) {
             cookieStore.set({ name, value, ...options });
           },
-          remove(name: string, options) {
+          remove(name, options) {
             cookieStore.delete({ name, ...options });
           },
         },
       }
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (!error && data.user) {
+      // Detect new users who haven't completed onboarding.
+      // This handles Google login on the /login page where next=/dashboard —
+      // without this check, new Google users would bypass /onboarding entirely.
+      if (next !== "/onboarding") {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("onboarding_completed_at")
+          .eq("id", data.user.id)
+          .maybeSingle();
+
+        if (!profile?.onboarding_completed_at) {
+          return NextResponse.redirect(`${origin}/onboarding`);
+        }
+      }
+
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
 
-  // Return to error page if code exchange fails
   return NextResponse.redirect(`${origin}/login?error=oauth_callback`);
 }
