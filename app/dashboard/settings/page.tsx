@@ -3,13 +3,22 @@
 import { useEffect, useState } from "react";
 import { createSupabaseClient } from "~/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Loader2, Save, User, Building2, ArrowRight, AlertCircle } from "lucide-react";
+import { Loader2, Save, User, Building2, ArrowRight, AlertCircle, Briefcase, Target, Users } from "lucide-react";
 import { isDemoMode, DEMO_PROFILE, DEMO_WORKSPACE, DEMO_USER } from "~/lib/mock/mockData";
 import { toast } from "sonner";
 
 const INDUSTRY_OPTIONS = [
   "Solar", "HVAC", "Roofing", "Plumbing", "Electrical",
   "Landscaping", "General Contracting", "Home Services", "Other",
+];
+
+const COMPANY_SIZE_OPTIONS = [
+  "1-5", "6-10", "11-25", "26-50", "51-100", "101-250", "250+",
+];
+
+const ROLE_OPTIONS = [
+  "Owner / Founder", "CEO", "Marketing Manager", "Operations Manager",
+  "Sales Manager", "General Manager", "Other",
 ];
 
 const BRAND_COLOR_PRESETS = [
@@ -35,11 +44,13 @@ export default function SettingsPage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
 
-  // Profile fields
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [industry, setIndustry] = useState("");
+  const [companySize, setCompanySize] = useState("");
+  const [role, setRole] = useState("");
+  const [challenge, setChallenge] = useState("");
   const [userType, setUserType] = useState("");
 
   // Account type
@@ -64,6 +75,9 @@ export default function SettingsPage() {
       setFullName(DEMO_PROFILE.full_name);
       setCompanyName(DEMO_PROFILE.company_name);
       setIndustry(DEMO_PROFILE.industry);
+      setCompanySize((DEMO_PROFILE as any).company_size ?? "");
+      setRole((DEMO_PROFILE as any).role ?? "");
+      setChallenge((DEMO_PROFILE as any).challenge ?? "");
       setUserType(DEMO_PROFILE.user_type);
       setHasAgency(DEMO_PROFILE.has_agency);
       setUpgradeWsName(DEMO_PROFILE.company_name + " Agency");
@@ -87,7 +101,7 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, company_name, industry, user_type, has_agency")
+        .select("full_name, company_name, industry, user_type, has_agency, company_size, role, challenge")
         .eq("id", user.id)
         .single();
 
@@ -95,6 +109,9 @@ export default function SettingsPage() {
         setFullName(profile.full_name ?? "");
         setCompanyName(profile.company_name ?? "");
         setIndustry(profile.industry ?? "");
+        setCompanySize((profile as any).company_size ?? "");
+        setRole((profile as any).role ?? "");
+        setChallenge((profile as any).challenge ?? "");
         setUserType(profile.user_type ?? "direct");
         setHasAgency(profile.has_agency ?? false);
         // Pre-fill upgrade workspace name with their company name
@@ -143,6 +160,9 @@ export default function SettingsPage() {
         full_name: fullName.trim() || null,
         company_name: companyName.trim() || null,
         industry: industry || null,
+        company_size: companySize || null,
+        role: role.trim() || null,
+        challenge: challenge.trim() || null,
       })
       .eq("id", user.id);
 
@@ -312,6 +332,46 @@ export default function SettingsPage() {
                 <option key={opt} value={opt.toLowerCase()}>{opt}</option>
               ))}
             </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-5">
+            <div>
+              <label className="block text-muted-foreground text-sm mb-1.5">Company Size</label>
+              <select
+                value={companySize}
+                onChange={(e) => setCompanySize(e.target.value)}
+                className="w-full bg-secondary border-transparent text-foreground focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-transparent rounded-xl px-4 py-2.5 text-sm transition-colors appearance-none"
+              >
+                <option value="">Select size</option>
+                {COMPANY_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt} employees</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-muted-foreground text-sm mb-1.5">Your Role</label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-full bg-secondary border-transparent text-foreground focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-transparent rounded-xl px-4 py-2.5 text-sm transition-colors appearance-none"
+              >
+                <option value="">Select role</option>
+                {ROLE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-muted-foreground text-sm mb-1.5">Biggest Challenge</label>
+            <input
+              type="text"
+              value={challenge}
+              onChange={(e) => setChallenge(e.target.value)}
+              placeholder="e.g. Getting more leads, improving retention"
+              className="w-full bg-secondary border-transparent text-foreground placeholder-muted-foreground focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-transparent rounded-xl px-4 py-2.5 text-sm transition-colors"
+            />
           </div>
 
           {profileError && <p className="text-destructive text-sm">{profileError}</p>}

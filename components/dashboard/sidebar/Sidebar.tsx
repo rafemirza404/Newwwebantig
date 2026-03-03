@@ -33,6 +33,7 @@ interface SidebarProps {
   userEmail: string;
   userName: string;
   workspaceName?: string;
+  userPlan?: string;
 }
 
 interface NavItem {
@@ -69,11 +70,12 @@ const directWorkspaceNav: NavItem[] = [
   { label: "Billing", href: "/dashboard/billing", icon: <CreditCard className="w-4 h-4" /> },
 ];
 
-export default function Sidebar({ userType, userEmail, userName, workspaceName }: SidebarProps) {
+export default function Sidebar({ userType, userEmail, userName, workspaceName, userPlan }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(true);
+  const isProUser = userPlan === "pro";
 
   const isAgency = userType === "agency_owner";
   const mainNav = isAgency ? agencyNav : directNav;
@@ -221,13 +223,13 @@ export default function Sidebar({ userType, userEmail, userName, workspaceName }
 
       <div className="px-5 pb-5 mt-auto">
         {/* Upgrade Pro Widget */}
-        {!collapsed && showUpgrade && (
+        {!collapsed && showUpgrade && !isProUser && (
           <div className="bg-card border border-border/50 rounded-2xl p-4 mb-6 relative overflow-hidden shadow-lg group">
             {/* Subtle glow behind */}
             <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 blur-xl rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
 
-            <button onClick={() => setShowUpgrade(false)} className="absolute top-2.5 right-2.5 w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors z-10 rounded-full hover:bg-secondary">
-              <X className="w-3.5 h-3.5" />
+            <button onClick={() => setShowUpgrade(false)} className="absolute top-3 right-3 w-5 h-5 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors z-10 rounded-full hover:bg-secondary">
+              <X className="w-3 h-3" />
             </button>
 
             <div className="flex items-center gap-2 mb-2 relative z-10">

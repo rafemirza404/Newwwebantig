@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { Plus, ArrowUpRight, ListFilter, User } from "lucide-react";
 import { AgencyGrowthChart } from "~/components/dashboard/agency/AgencyGrowthChart";
-import { DashboardHeader } from "~/components/dashboard/shared/DashboardHeader";
 
 interface Client {
   id: string;
@@ -64,21 +63,6 @@ export default function AgencyDashboard({
   const closedDeals = clients.length * 850;
   const closedRatio = clients.length > 0 ? Math.min(100, (activeClients / clients.length) * 100) : 0;
 
-  // Build search items from clients
-  const searchItems = clients.map((c) => ({
-    id: c.id,
-    name: c.business_name,
-    href: `/dashboard/clients/${c.id}`,
-  }));
-
-  // Build notifications from recent audits
-  const notifications = recentAudits.slice(0, 5).map((a) => ({
-    id: a.id,
-    label: a.business_name,
-    meta: `${a.status === "complete" ? "Audit completed" : a.status === "in_progress" ? "Audit in progress" : "Audit started"} · ${new Date(a.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
-    type: "audit" as const,
-  }));
-
   // Filter clients by tab and search query
   const tabFilteredAudits = (() => {
     if (activeTab === "Clients" || activeTab === "All") return recentAudits;
@@ -89,15 +73,15 @@ export default function AgencyDashboard({
 
   const visibleAudits = searchQuery
     ? tabFilteredAudits.filter((a) =>
-        a.business_name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      a.business_name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : tabFilteredAudits;
 
   // Filter clients table for search
   const visibleClients = searchQuery
     ? clients.filter((c) =>
-        c.business_name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      c.business_name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : clients;
 
   // Count badges for tabs
@@ -115,16 +99,6 @@ export default function AgencyDashboard({
 
   return (
     <div className="p-8 max-w-[1500px] mx-auto min-h-screen font-sans">
-
-      <DashboardHeader
-        firstName={firstName}
-        email={email}
-        searchItems={searchItems}
-        notifications={notifications}
-        onSearchChange={setSearchQuery}
-        hasAgency={hasAgency}
-        currentMode={currentMode}
-      />
 
       {/* Hero section */}
       <div className="mb-10 animate-fade-in">
@@ -293,15 +267,14 @@ export default function AgencyDashboard({
                         </div>
                       </td>
                       <td className="px-2 py-3">
-                        <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full ${
-                          audit.status === "complete" ? "bg-primary/10 text-primary" :
+                        <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full ${audit.status === "complete" ? "bg-primary/10 text-primary" :
                           audit.status === "in_progress" ? "bg-amber-500/10 text-amber-500" :
-                          "bg-secondary text-muted-foreground"
-                        }`}>
+                            "bg-secondary text-muted-foreground"
+                          }`}>
                           {audit.status === "in_progress" ? "In Progress" :
-                           audit.status === "complete" ? "Complete" :
-                           audit.status === "processing" ? "Processing" :
-                           audit.status.charAt(0).toUpperCase() + audit.status.slice(1)}
+                            audit.status === "complete" ? "Complete" :
+                              audit.status === "processing" ? "Processing" :
+                                audit.status.charAt(0).toUpperCase() + audit.status.slice(1)}
                         </span>
                       </td>
                       <td className="px-2 py-3 text-muted-foreground text-sm">

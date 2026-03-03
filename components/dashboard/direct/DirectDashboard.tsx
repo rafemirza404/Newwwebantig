@@ -5,7 +5,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Circle, Clock, Target, Zap, ArrowUpRight, ListFilter } from "lucide-react";
 import ScoreBar from "~/components/dashboard/shared/ScoreBar";
-import { DashboardHeader } from "~/components/dashboard/shared/DashboardHeader";
 
 interface DirectDashboardProps {
   firstName: string;
@@ -62,21 +61,6 @@ export default function DirectDashboard({ firstName, email = "", latestReport, s
     return implItems; // Reports tab navigates, handled by onClick
   })();
 
-  // Build search items from sessions
-  const searchItems = sessions.map((s) => ({
-    id: s.id,
-    name: s.business_name,
-    href: s.status === "complete" ? "/dashboard/reports" : `/audit/${s.id}`,
-  }));
-
-  // Build notifications from sessions
-  const notifications = sessions.slice(0, 5).map((s: any) => ({
-    id: s.id,
-    label: s.business_name,
-    meta: `${s.status === "complete" ? "Audit completed" : s.status === "in_progress" ? "Audit in progress" : "Audit started"} · ${new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
-    type: "audit" as const,
-  }));
-
   function handleTabClick(tab: TabKey) {
     if (tab === "Reports") {
       router.push("/dashboard/reports");
@@ -87,14 +71,6 @@ export default function DirectDashboard({ firstName, email = "", latestReport, s
 
   return (
     <div className="p-8 max-w-[1500px] mx-auto min-h-screen font-sans">
-      <DashboardHeader
-        firstName={firstName}
-        email={email}
-        searchItems={searchItems}
-        notifications={notifications}
-        hasAgency={hasAgency}
-        currentMode={currentMode}
-      />
 
       {!hasAudit ? (
         /* No audit yet — dashboard-style empty state */

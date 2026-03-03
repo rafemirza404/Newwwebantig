@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "~/lib/supabase/server";
 import Sidebar from "~/components/dashboard/sidebar/Sidebar";
+import DashboardHeaderWrapper from "~/components/dashboard/shared/DashboardHeaderWrapper";
 import { isDemoMode, DEMO_PROFILE, DEMO_WORKSPACE } from "~/lib/mock/mockData";
 import type { UserType } from "~/lib/supabase/client";
 
@@ -25,8 +26,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
           userEmail={DEMO_PROFILE.email}
           userName={DEMO_PROFILE.full_name}
           workspaceName={effectiveUserType === "agency_owner" ? DEMO_WORKSPACE.name : undefined}
+          userPlan="free"
         />
         <main className="flex-1 overflow-y-auto">
+          <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-sm px-8 pt-6 pb-2">
+            <DashboardHeaderWrapper
+              firstName={DEMO_PROFILE.full_name.split(" ")[0]}
+              email={DEMO_PROFILE.email}
+              hasAgency={DEMO_PROFILE.has_agency}
+              currentMode={effectiveUserType as "direct" | "agency_owner"}
+            />
+          </div>
           {children}
         </main>
       </div>
@@ -42,7 +52,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("user_type, full_name, email, has_agency")
+    .select("user_type, full_name, email, has_agency, plan")
     .eq("id", user.id)
     .single();
 
@@ -73,8 +83,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
         userEmail={profile?.email ?? user.email ?? ""}
         userName={profile?.full_name ?? ""}
         workspaceName={workspaceName}
+        userPlan={(profile as any)?.plan ?? "free"}
       />
       <main className="flex-1 overflow-y-auto">
+        <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-sm px-8 pt-6 pb-2">
+          <DashboardHeaderWrapper
+            firstName={(profile?.full_name ?? "").split(" ")[0] || "User"}
+            email={profile?.email ?? user.email ?? ""}
+            hasAgency={(profile as any)?.has_agency ?? false}
+            currentMode={effectiveUserType as "direct" | "agency_owner"}
+          />
+        </div>
         {children}
       </main>
     </div>
