@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { Lock, AlertTriangle, AlertCircle, Info } from "lucide-react";
 import type { Gap } from "../page";
@@ -29,13 +32,22 @@ const SEVERITY_LABEL: Record<string, string> = {
   low: "Low Priority",
 };
 
+const POTENTIAL_CONFIG = {
+  high: { label: "High automation potential", color: "#4ADE80" },
+  medium: { label: "Medium potential", color: "#F59E0B" },
+  low: { label: "Low potential", color: "#94A3B8" },
+};
+
 interface GapsSectionProps {
   gaps: Gap[];
   teaserGap: Gap | null;
   isPro: boolean;
+  narrative?: string | null;
 }
 
-export default function GapsSection({ gaps, teaserGap, isPro }: GapsSectionProps) {
+export default function GapsSection({ gaps, teaserGap, isPro, narrative }: GapsSectionProps) {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
   return (
     <section>
       <h2 className="text-foreground font-medium text-[24px] mb-6 tracking-tight">
@@ -47,31 +59,134 @@ export default function GapsSection({ gaps, teaserGap, isPro }: GapsSectionProps
         )}
       </h2>
 
+      {/* Gap analysis narrative */}
+      {narrative && (
+        <div className="bg-secondary/30 rounded-2xl p-5 mb-6">
+          <p className="text-foreground text-[15px] leading-relaxed">{narrative}</p>
+        </div>
+      )}
+
       <div className="space-y-4">
         {gaps.map((gap, i) => {
           const style = SEVERITY_STYLES[gap.severity] ?? SEVERITY_STYLES.medium;
+          const isExpanded = expandedIndex === i;
+          const annualHours = gap.time_cost_per_week_hours
+            ? Math.round(gap.time_cost_per_week_hours * 52)
+            : null;
+          const potentialCfg = gap.automation_potential
+            ? POTENTIAL_CONFIG[gap.automation_potential]
+            : null;
+
           return (
             <div
               key={i}
-              className={`bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] border-l-4 rounded-2xl p-6 ${style.border} transition-all hover:bg-secondary/20`}
+              className={`bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] border-l-4 rounded-2xl overflow-hidden ${style.border} transition-all`}
             >
-              <div className="flex items-start gap-4">
-                <span className={`p-2 rounded-xl bg-background shadow-sm border border-border/50 ${style.text}`}>{style.icon}</span>
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
+              {/* Header — clickable */}
+              <button
+                onClick={() => setExpandedIndex(isExpanded ? null : i)}
+                className="w-full text-left px-6 py-5 flex items-start gap-4 hover:bg-secondary/20 transition-colors"
+              >
+                <span className={`p-2 rounded-xl bg-background shadow-sm border border-border/50 ${style.text} flex-shrink-0 mt-0.5`}>
+                  {style.icon}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                    {gap.priority_rank && (
+                      <span className="text-[11px] font-bold text-muted-foreground w-5 h-5 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+                        {gap.priority_rank}
+                      </span>
+                    )}
                     <h3 className="text-foreground font-medium text-[17px] tracking-tight">{gap.name}</h3>
                     <span className={`text-[12px] font-medium px-2.5 py-0.5 rounded-md ${style.bg} ${style.text}`}>
                       {SEVERITY_LABEL[gap.severity]}
                     </span>
+                    {potentialCfg && (
+                      <span
+                        className="text-[11px] font-medium px-2 py-0.5 rounded-md"
+                        style={{
+                          backgroundColor: `${potentialCfg.color}18`,
+                          color: potentialCfg.color,
+                        }}
+                      >
+                        {potentialCfg.label}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-muted-foreground text-[15px] leading-relaxed max-w-3xl">{gap.description}</p>
+                  <p className="text-muted-foreground text-[14px] leading-relaxed line-clamp-2">{gap.description}</p>
                 </div>
-              </div>
+
+                {/* Annual cost teaser + chevron */}
+                <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+                  {gap.estimated_annual_cost !== undefined && (
+                    <div className="text-right">
+                      <p className="text-[#F87171] font-semibold text-[15px]">
+                        ${gap.estimated_annual_cost.toLocaleString()}
+                      </p>
+                      <p className="text-muted-foreground text-[11px]">/ year</p>
+                    </div>
+                  )}
+                  <svg
+                    className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+
+              {/* Expanded detail panel */}
+              {isExpanded && (
+                <div className="px-6 pb-6 border-t border-border/20">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    {gap.why_this_matters && (
+                      <div className="bg-secondary/30 rounded-xl p-4">
+                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                          Why This Matters
+                        </p>
+                        <p className="text-foreground text-[14px] leading-relaxed">{gap.why_this_matters}</p>
+                      </div>
+                    )}
+                    {gap.affected_team_members && (
+                      <div className="bg-secondary/30 rounded-xl p-4">
+                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                          Who&apos;s Affected
+                        </p>
+                        <p className="text-foreground text-[14px] leading-relaxed">{gap.affected_team_members}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Cost of inaction */}
+                  {(annualHours || gap.estimated_annual_cost || gap.time_cost_per_week_hours) && (
+                    <div className="flex flex-wrap gap-3 mt-4">
+                      {gap.time_cost_per_week_hours && (
+                        <div className="flex items-center gap-2 px-4 py-2.5 bg-secondary/40 border border-border/20 rounded-xl">
+                          <span className="text-foreground font-bold text-[16px]">{gap.time_cost_per_week_hours}h</span>
+                          <span className="text-muted-foreground text-[13px]">per week</span>
+                        </div>
+                      )}
+                      {annualHours && (
+                        <div className="flex items-center gap-2 px-4 py-2.5 bg-[#F87171]/5 border border-[#F87171]/20 rounded-xl">
+                          <span className="text-[#F87171] font-bold text-[16px]">{annualHours}h</span>
+                          <span className="text-muted-foreground text-[13px]">lost per year</span>
+                        </div>
+                      )}
+                      {gap.estimated_annual_cost && (
+                        <div className="flex items-center gap-2 px-4 py-2.5 bg-[#F87171]/5 border border-[#F87171]/20 rounded-xl">
+                          <span className="text-[#F87171] font-bold text-[16px]">${gap.estimated_annual_cost.toLocaleString()}</span>
+                          <span className="text-muted-foreground text-[13px]">annual cost</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
 
-        {/* Teaser gap — blurred preview of next gap */}
+        {/* Teaser gap */}
         {teaserGap && (
           <div className="border border-border/50 rounded-2xl p-6 bg-card relative overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
             <div className="blur-md opacity-40 pointer-events-none select-none">
