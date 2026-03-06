@@ -164,7 +164,7 @@ export async function runFinalCompiler(params: {
     type: s.implementation_complexity === "simple" ? "quick_win" : s.implementation_complexity === "medium" ? "medium" : "strategic",
     locked: s.implementation_complexity !== "simple",
     gapName: s.solution_name,
-    howItWorks: s.how_it_works,
+    how_it_works: s.how_it_works,
     toolsRecommended: s.primary_tools,
     roiEstimate: `Save ~$${Math.round(s.roi.cost_saved_per_year).toLocaleString()}/year`,
     setupTimeHrs: s.estimated_setup_hours,
@@ -253,6 +253,19 @@ export async function runFinalCompiler(params: {
     .from("audit_sessions")
     .update({ status: "complete", completed_at: new Date().toISOString(), pipeline_stage: "complete" })
     .eq("id", params.sessionId);
+
+  // Insert report-ready notification (non-blocking)
+  try {
+    await writeClient.from("notifications").insert({
+      user_id: params.userId,
+      title: `${params.profilerOutput.business_profile.name} report is ready`,
+      message: `AI maturity score: ${gaps.overall_maturity_score}/100. View your full report and recommendations.`,
+      type: "report_ready",
+      href: `/report/${params.reportId}`,
+    });
+  } catch (err) {
+    console.error("[Agent7] Notification insert failed:", err);
+  }
 
   console.log("[Pipeline] Agent 7 complete. Report saved:", params.reportId);
 
