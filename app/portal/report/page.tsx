@@ -42,7 +42,7 @@ export default async function PortalReportPage() {
           />
           <GapsSection gaps={gaps} teaserGap={null} isPro={true} />
           <SolutionsSection solutions={solutions} isPro={true} />
-          <ROISection roi={roiAnalysis} isPro={true} />
+          <ROISection roi={roiAnalysis} totalRoiSummary={null} isPro={true} />
         </div>
       </div>
     );
@@ -150,7 +150,7 @@ export default async function PortalReportPage() {
         />
         <GapsSection gaps={gaps} teaserGap={null} isPro={true} />
         <SolutionsSection solutions={solutions} isPro={true} />
-        <ROISection roi={roiAnalysis} isPro={true} />
+        <ROISection roi={roiAnalysis} totalRoiSummary={null} isPro={true} />
       </div>
     </div>
   );
