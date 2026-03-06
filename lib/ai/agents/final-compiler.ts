@@ -215,6 +215,7 @@ export async function runFinalCompiler(params: {
         ? { name: teaserGap.name, severity: teaserGap.severity, description: teaserGap.current_situation }
         : null,
       full_gaps: oldStyleGaps,
+      gap_analysis_narrative: gaps.gap_analysis_narrative,
       solutions: oldStyleSolutions,
       roi_analysis: {
         estimated_hrs_saved_monthly: Math.round(solutions.total_roi_summary.total_hours_saved_per_week * 4),

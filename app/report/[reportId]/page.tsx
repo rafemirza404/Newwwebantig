@@ -27,7 +27,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
         id, user_id, overall_score, function_scores, business_summary,
         gaps_preview, teaser_gap, full_gaps, solutions, roi_analysis,
         diagrams, roadmap, total_roi_summary, created_at,
-        business_profile, comparison_data,
+        business_profile, comparison_data, gap_analysis_narrative,
         share_token, is_shared,
         audit_sessions (
           id, business_name, industry, company_size
@@ -93,6 +93,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
             gaps={(report.full_gaps as Gap[]) ?? []}
             teaserGap={null}
             isPro={true}
+            narrative={(report.gap_analysis_narrative as string) ?? null}
           />
           <SolutionsSection solutions={(report.solutions as Solution[]) ?? []} isPro={true} />
           <ROISection roi={(report.roi_analysis as RoiAnalysis) ?? {}} totalRoiSummary={totalRoiSummary} isPro={true} />
@@ -120,7 +121,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
       id, user_id, overall_score, function_scores, business_summary,
       gaps_preview, teaser_gap, full_gaps, solutions, roi_analysis,
       diagrams, roadmap, total_roi_summary, created_at,
-      business_profile, comparison_data,
+      business_profile, comparison_data, gap_analysis_narrative,
       audit_sessions (
         id, business_name, industry, company_size
       )
@@ -207,7 +208,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
           summary={report?.business_summary ?? ""}
         />
 
-        <GapsSection gaps={gapsToShow} teaserGap={teaserGap} isPro={isPro} />
+        <GapsSection gaps={gapsToShow} teaserGap={teaserGap} isPro={isPro} narrative={isPro ? ((report?.gap_analysis_narrative as string) ?? null) : null} />
 
         <SolutionsSection solutions={solutions} isPro={isPro} />
 
