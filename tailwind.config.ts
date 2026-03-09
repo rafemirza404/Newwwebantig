@@ -1,4 +1,6 @@
 import type { Config } from "tailwindcss";
+import { colors as attensiraColors } from "./data/config/colors";
+
 export default {
   darkMode: ["class"],
   content: [
@@ -6,6 +8,7 @@ export default {
     "./components/**/*.{ts,tsx}",
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
+    "./data/**/*.{ts,tsx,js,jsx}",
   ],
   prefix: "",
   theme: {
@@ -43,10 +46,6 @@ export default {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
         },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
@@ -55,6 +54,14 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        // Attensira tokens
+        grays: attensiraColors.grays,
+        accents: attensiraColors.accents,
+
         // AgentBlue homepage colors (light theme)
         "electric-blue": "hsl(var(--electric-blue))",
         "deep-navy": "hsl(var(--deep-navy))",

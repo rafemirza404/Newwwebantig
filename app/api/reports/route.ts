@@ -61,9 +61,11 @@ export async function DELETE(req: NextRequest) {
     if (action === "delete") {
       await supabase.from("reports").delete().eq("id", reportId).eq("user_id", user.id);
     }
-    // "archive" could be handled with a status field in future; for now treat as soft-delete
     if (action === "archive") {
-      await supabase.from("reports").delete().eq("id", reportId).eq("user_id", user.id);
+      await supabase.from("reports").update({ archived_at: new Date().toISOString() }).eq("id", reportId).eq("user_id", user.id);
+    }
+    if (action === "restore") {
+      await supabase.from("reports").update({ archived_at: null }).eq("id", reportId).eq("user_id", user.id);
     }
 
     return NextResponse.json({ ok: true });

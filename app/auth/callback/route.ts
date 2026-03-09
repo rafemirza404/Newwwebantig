@@ -30,19 +30,25 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data.user) {
-      // Detect new users who haven't completed onboarding.
-      // This handles Google login on the /login page where next=/dashboard —
-      // without this check, new Google users would bypass /onboarding entirely.
-      if (next !== "/onboarding") {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("onboarding_completed_at")
-          .eq("id", data.user.id)
-          .maybeSingle();
+      // Always fetch profile — needed for both portal client detection and onboarding check
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarding_completed_at, user_type")
+        .eq("id", data.user.id)
+        .maybeSingle();
 
-        if (!profile?.onboarding_completed_at) {
-          return NextResponse.redirect(`${origin}/onboarding`);
-        }
+      // Portal client users — redirect to portal, never onboarding
+      // Check both user_metadata (new users) and profile user_type (all users)
+      const isClient =
+        data.user.user_metadata?.user_type === "client" ||
+        profile?.user_type === "client";
+      if (isClient) {
+        return NextResponse.redirect(`${origin}/portal`);
+      }
+
+      // Detect new agency/direct users who haven't completed onboarding
+      if (next !== "/onboarding" && !profile?.onboarding_completed_at) {
+        return NextResponse.redirect(`${origin}/onboarding`);
       }
 
       return NextResponse.redirect(`${origin}${next}`);

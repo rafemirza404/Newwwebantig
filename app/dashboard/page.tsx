@@ -133,21 +133,26 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
     );
   }
 
-  // Direct user dashboard
+  // Direct user dashboard — exclude agency client audits (those have workspace_id set)
   const { data: sessions } = await supabase
     .from("audit_sessions")
     .select("id, status, business_name, started_at, completed_at")
     .eq("user_id", user.id)
+    .is("workspace_id", null)
     .order("started_at", { ascending: false })
     .limit(5);
 
-  const { data: latestReport } = await supabase
-    .from("reports")
-    .select("id, overall_score, function_scores, gaps_preview, full_gaps, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Get latest report scoped to direct sessions only
+  const directSessionIds = (sessions ?? []).map((s: any) => s.id);
+  const { data: latestReport } = directSessionIds.length > 0
+    ? await supabase
+        .from("reports")
+        .select("id, overall_score, function_scores, gaps_preview, full_gaps, created_at")
+        .in("session_id", directSessionIds)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
 
   const { data: implItems } = await supabase
     .from("implementation_items")

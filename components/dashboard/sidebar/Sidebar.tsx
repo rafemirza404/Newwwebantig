@@ -26,7 +26,7 @@ import { createSupabaseClient } from "~/lib/supabase/client";
 import { useState } from "react";
 import type { UserType } from "~/lib/supabase/client";
 import { ThemeSwitch } from "~/components/ThemeSwitch";
-import { toast } from "sonner";
+import { openCommandPalette } from "~/components/dashboard/shared/CommandPalette";
 
 interface SidebarProps {
   userType: UserType;
@@ -152,19 +152,17 @@ export default function Sidebar({ userType, userEmail, userName, workspaceName, 
         </button>
       )}
 
-      {/* Search area */}
+      {/* Search — opens command palette */}
       {!collapsed && (
         <div className="px-5 pb-4">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              readOnly
-              onClick={() => toast.info("Search feature is coming soon!")}
-              placeholder="Search Anything..."
-              className="pl-9 pr-3 py-2 w-full text-xs bg-secondary border border-transparent rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder-muted-foreground transition-all cursor-pointer"
-            />
-          </div>
+          <button
+            onClick={openCommandPalette}
+            className="flex items-center gap-2 w-full pl-3 pr-2 py-2 text-xs bg-secondary border border-transparent rounded-lg text-muted-foreground hover:text-foreground hover:border-border transition-all cursor-pointer group"
+          >
+            <Search className="w-4 h-4 flex-shrink-0" />
+            <span className="flex-1 text-left">Search Anything...</span>
+            <kbd className="ml-auto text-[10px] bg-background/50 rounded px-1.5 py-0.5 group-hover:bg-background">⌘K</kbd>
+          </button>
         </div>
       )}
 

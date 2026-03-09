@@ -1,63 +1,91 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search, Bell, Settings, LogOut, X, ChevronRight, Clock, Building2, User } from "lucide-react";
+import { Search, Bell, Settings, LogOut, Building2, User, FileText, ClipboardList, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "~/lib/supabase/client";
+import { openCommandPalette } from "~/components/dashboard/shared/CommandPalette";
 
 interface Notification {
     id: string;
-    label: string;
-    meta: string;
-    type: "audit" | "client" | "report";
+    title: string;
+    message: string | null;
+    type: "audit_complete" | "report_ready" | "client_added" | "system";
+    href: string;
+    is_read: boolean;
+    created_at: string;
 }
 
 interface DashboardHeaderProps {
     firstName: string;
     lastName?: string;
     email: string;
-    /** Items to search through — pass clients or sessions array */
-    searchItems?: { id: string; name: string; href: string }[];
-    /** Recent activity for the notification bell */
     notifications?: Notification[];
-    onSearchChange?: (query: string) => void;
-    /** Show mode switcher pill — only when user has both direct + agency modes */
     hasAgency?: boolean;
-    /** Current active view mode */
     currentMode?: "direct" | "agency_owner";
+}
+
+function timeAgo(dateStr: string): string {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function NotifIcon({ type }: { type: string }) {
+    if (type === "report_ready") return <FileText className="w-4 h-4 text-primary" />;
+    if (type === "audit_complete") return <ClipboardList className="w-4 h-4 text-green-500" />;
+    if (type === "client_added") return <Users className="w-4 h-4 text-blue-500" />;
+    return <Bell className="w-4 h-4 text-muted-foreground" />;
 }
 
 export function DashboardHeader({
     firstName,
     lastName,
     email,
-    searchItems = [],
     notifications = [],
-    onSearchChange,
     hasAgency = false,
     currentMode = "direct",
 }: DashboardHeaderProps) {
-    const [searchOpen, setSearchOpen] = useState(false);
-    const [searchQuery, setSearchQuery] = useState("");
+    const [notifs, setNotifs] = useState<Notification[]>(notifications);
     const [bellOpen, setBellOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
     const [switchingMode, setSwitchingMode] = useState(false);
 
-    const searchRef = useRef<HTMLDivElement>(null);
     const bellRef = useRef<HTMLDivElement>(null);
     const profileRef = useRef<HTMLDivElement>(null);
-    const searchInputRef = useRef<HTMLInputElement>(null);
     const router = useRouter();
+
+    // Sync when wrapper re-fetches on route change
+    useEffect(() => { setNotifs(notifications); }, [notifications]);
+
+    const unreadCount = notifs.filter(n => !n.is_read).length;
+
+    function markRead(id: string) {
+        setNotifs(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+        fetch("/api/notifications/read", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids: [id] }),
+        }).catch(() => {});
+    }
+
+    function markAllRead() {
+        setNotifs(prev => prev.map(n => ({ ...n, is_read: true })));
+        fetch("/api/notifications/read", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ all: true }),
+        }).catch(() => {});
+    }
 
     // Close dropdowns when clicking outside
     useEffect(() => {
         function handleClickOutside(e: MouseEvent) {
-            if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-                setSearchOpen(false);
-                setSearchQuery("");
-                onSearchChange?.("");
-            }
             if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
                 setBellOpen(false);
             }
@@ -67,25 +95,7 @@ export function DashboardHeader({
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [onSearchChange]);
-
-    // Focus input when search opens
-    useEffect(() => {
-        if (searchOpen) {
-            setTimeout(() => searchInputRef.current?.focus(), 50);
-        }
-    }, [searchOpen]);
-
-    function handleSearch(query: string) {
-        setSearchQuery(query);
-        onSearchChange?.(query);
-    }
-
-    const filteredItems = searchQuery.trim()
-        ? searchItems.filter((item) =>
-            item.name.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        : searchItems.slice(0, 5);
+    }, []);
 
     async function handleLogout() {
         const supabase = createSupabaseClient();
@@ -137,115 +147,68 @@ export function DashboardHeader({
                 </div>
             )}
 
-            {/* Search */}
-            <div ref={searchRef} className="relative">
-                <button
-                    onClick={() => {
-                        setSearchOpen((v) => !v);
-                        setBellOpen(false);
-                        setProfileOpen(false);
-                    }}
-                    className="w-10 h-10 rounded-full bg-secondary hover:bg-secondary/80 flex items-center justify-center cursor-pointer transition-smooth border border-transparent hover:border-border"
-                >
-                    {searchOpen ? (
-                        <X className="w-[18px] h-[18px] text-muted-foreground" />
-                    ) : (
-                        <Search className="w-[18px] h-[18px] text-muted-foreground" />
-                    )}
-                </button>
-
-                {/* Search dropdown */}
-                {searchOpen && (
-                    <div className="absolute top-14 right-0 w-80 bg-card border border-border rounded-2xl shadow-elegant overflow-hidden animate-fade-in">
-                        <div className="p-3 border-b border-border">
-                            <div className="relative">
-                                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                <input
-                                    ref={searchInputRef}
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => handleSearch(e.target.value)}
-                                    placeholder="Search clients or audits..."
-                                    className="w-full pl-9 pr-4 py-2.5 text-sm bg-secondary text-foreground placeholder:text-muted-foreground rounded-xl border border-transparent focus:outline-none focus:border-primary transition-smooth"
-                                />
-                            </div>
-                        </div>
-
-                        {searchItems.length > 0 ? (
-                            <div className="max-h-60 overflow-y-auto">
-                                {filteredItems.length > 0 ? (
-                                    filteredItems.map((item) => (
-                                        <Link
-                                            key={item.id}
-                                            href={item.href}
-                                            onClick={() => {
-                                                setSearchOpen(false);
-                                                setSearchQuery("");
-                                                onSearchChange?.("");
-                                            }}
-                                            className="flex items-center justify-between px-4 py-3 hover:bg-secondary transition-colors group"
-                                        >
-                                            <span className="text-sm text-foreground font-medium group-hover:text-primary transition-colors">
-                                                {item.name}
-                                            </span>
-                                            <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                                        </Link>
-                                    ))
-                                ) : (
-                                    <div className="px-4 py-6 text-center text-muted-foreground text-sm">
-                                        No results for &quot;{searchQuery}&quot;
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="px-4 py-6 text-center text-muted-foreground text-sm">
-                                No items to search yet
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
+            {/* Search — opens command palette */}
+            <button
+                onClick={openCommandPalette}
+                title="Search (Ctrl+K)"
+                className="w-10 h-10 rounded-full bg-secondary hover:bg-secondary/80 flex items-center justify-center cursor-pointer transition-smooth border border-transparent hover:border-border"
+            >
+                <Search className="w-[18px] h-[18px] text-muted-foreground" />
+            </button>
 
             {/* Bell / Notifications */}
             <div ref={bellRef} className="relative">
                 <button
-                    onClick={() => {
-                        setBellOpen((v) => !v);
-                        setSearchOpen(false);
-                        setProfileOpen(false);
-                    }}
+                    onClick={() => { setBellOpen((v) => !v); setProfileOpen(false); }}
                     className="relative w-10 h-10 rounded-full bg-secondary hover:bg-secondary/80 flex items-center justify-center cursor-pointer text-muted-foreground transition-smooth border border-transparent hover:border-border"
                 >
                     <Bell className="w-[18px] h-[18px]" />
-                    {notifications.length > 0 && (
-                        <span className="absolute top-2 right-2 w-2 h-2 bg-destructive rounded-full ring-2 ring-background" />
+                    {unreadCount > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 ring-2 ring-background">
+                            {unreadCount > 9 ? "9+" : unreadCount}
+                        </span>
                     )}
                 </button>
 
-                {/* Notifications dropdown */}
                 {bellOpen && (
                     <div className="absolute top-14 right-0 w-80 bg-card border border-border rounded-2xl shadow-elegant overflow-hidden animate-fade-in">
                         <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                             <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
-                            {notifications.length > 0 && (
-                                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                                    {notifications.length} new
-                                </span>
+                            {unreadCount > 0 && (
+                                <button
+                                    onClick={markAllRead}
+                                    className="text-xs text-primary hover:underline"
+                                >
+                                    Mark all read
+                                </button>
                             )}
                         </div>
 
-                        {notifications.length > 0 ? (
-                            <div className="max-h-60 overflow-y-auto divide-y divide-border/50">
-                                {notifications.map((n) => (
-                                    <div key={n.id} className="flex items-start gap-3 px-4 py-3 hover:bg-secondary transition-colors">
-                                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                            <Clock className="w-4 h-4 text-primary" />
+                        {notifs.length > 0 ? (
+                            <div className="max-h-72 overflow-y-auto divide-y divide-border/50">
+                                {notifs.map((n) => (
+                                    <Link
+                                        key={n.id}
+                                        href={n.href}
+                                        onClick={() => { markRead(n.id); setBellOpen(false); }}
+                                        className={`flex items-start gap-3 px-4 py-3 hover:bg-secondary transition-colors ${!n.is_read ? "bg-primary/[0.03]" : ""}`}
+                                    >
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${!n.is_read ? "bg-primary/10" : "bg-secondary"}`}>
+                                            <NotifIcon type={n.type} />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-foreground truncate">{n.label}</p>
-                                            <p className="text-xs text-muted-foreground mt-0.5">{n.meta}</p>
+                                            <p className={`text-sm truncate ${!n.is_read ? "font-medium text-foreground" : "text-muted-foreground"}`}>
+                                                {n.title}
+                                            </p>
+                                            {n.message && (
+                                                <p className="text-xs text-muted-foreground mt-0.5 truncate">{n.message}</p>
+                                            )}
+                                            <p className="text-[10px] text-muted-foreground/60 mt-1">{timeAgo(n.created_at)}</p>
                                         </div>
-                                    </div>
+                                        {!n.is_read && (
+                                            <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-2" />
+                                        )}
+                                    </Link>
                                 ))}
                             </div>
                         ) : (
@@ -261,11 +224,7 @@ export function DashboardHeader({
             {/* Profile Circle */}
             <div ref={profileRef} className="relative ml-1">
                 <button
-                    onClick={() => {
-                        setProfileOpen((v) => !v);
-                        setSearchOpen(false);
-                        setBellOpen(false);
-                    }}
+                    onClick={() => { setProfileOpen((v) => !v); setBellOpen(false); }}
                     className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-sm cursor-pointer border-2 border-primary shadow-glow transition-smooth hover:scale-105"
                 >
                     {firstName.charAt(0).toUpperCase()}

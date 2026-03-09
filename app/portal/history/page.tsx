@@ -42,7 +42,7 @@ export default async function PortalHistoryPage() {
     const { data: sessions } = await supabase
       .from("audit_sessions")
       .select("id, business_name, status, started_at, completed_at, reports(id)")
-      .eq("workspace_id", client.workspace_id)
+      .eq("client_id", client.id)
       .order("started_at", { ascending: false });
 
     rows = (sessions ?? []) as AuditSession[];

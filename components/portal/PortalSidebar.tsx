@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { FileText, TrendingUp, Clock, Settings, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileText, TrendingUp, Clock, BarChart2, Settings, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
 import { createSupabaseClient } from "~/lib/supabase/client";
 import { ThemeSwitch } from "~/components/ThemeSwitch";
 
@@ -12,6 +12,7 @@ interface PortalSidebarProps {
   workspaceName: string;
   workspaceLogoUrl: string | null;
   brandColor: string;
+  isWhiteLabel: boolean;
   clientName: string;
   clientEmail: string;
 }
@@ -19,6 +20,7 @@ interface PortalSidebarProps {
 const NAV = [
   { label: "My Report", href: "/portal/report", icon: FileText },
   { label: "Progress", href: "/portal/progress", icon: TrendingUp },
+  { label: "Analytics", href: "/portal/analytics", icon: BarChart2 },
   { label: "Audit History", href: "/portal/history", icon: Clock },
   { label: "Settings", href: "/portal/settings", icon: Settings },
 ];
@@ -27,6 +29,7 @@ export default function PortalSidebar({
   workspaceName,
   workspaceLogoUrl,
   brandColor,
+  isWhiteLabel,
   clientName,
   clientEmail,
 }: PortalSidebarProps) {
@@ -35,11 +38,12 @@ export default function PortalSidebar({
   const [collapsed, setCollapsed] = useState(false);
 
   const isActive = (href: string) => pathname.startsWith(href);
+  const activeColor = isWhiteLabel ? brandColor : undefined;
 
   const handleSignOut = async () => {
     const supabase = createSupabaseClient();
     await supabase.auth.signOut();
-    router.push("/login");
+    router.push("/portal/login");
   };
 
   const initials = clientName
@@ -52,7 +56,7 @@ export default function PortalSidebar({
       <div className="flex items-center gap-3 px-5 h-16 border-b border-border/10 justify-between shrink-0">
         {!collapsed && (
           <div className="flex items-center gap-3 overflow-hidden">
-            {workspaceLogoUrl ? (
+            {isWhiteLabel && workspaceLogoUrl ? (
               <Image
                 src={workspaceLogoUrl}
                 alt={workspaceName}
@@ -63,20 +67,22 @@ export default function PortalSidebar({
             ) : (
               <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0 shadow-sm"
-                style={{ backgroundColor: brandColor }}
+                style={{ backgroundColor: isWhiteLabel ? brandColor : "#7C6EF8" }}
               >
-                {workspaceName[0]?.toUpperCase() ?? "A"}
+                {(isWhiteLabel ? workspaceName[0] : "A")?.toUpperCase() ?? "A"}
               </div>
             )}
             <div className="min-w-0">
-              <p className="text-foreground text-[15px] font-bold tracking-tight truncate">{workspaceName}</p>
+              <p className="text-foreground text-[15px] font-bold tracking-tight truncate">
+                {isWhiteLabel ? workspaceName : "AgentBlue"}
+              </p>
               <p className="text-muted-foreground text-[12px] font-medium uppercase tracking-wider">Client Portal</p>
             </div>
           </div>
         )}
         {collapsed && (
           <div className="mx-auto">
-            {workspaceLogoUrl ? (
+            {isWhiteLabel && workspaceLogoUrl ? (
               <Image
                 src={workspaceLogoUrl}
                 alt={workspaceName}
@@ -87,9 +93,9 @@ export default function PortalSidebar({
             ) : (
               <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0 shadow-sm"
-                style={{ backgroundColor: brandColor }}
+                style={{ backgroundColor: isWhiteLabel ? brandColor : "#7C6EF8" }}
               >
-                {workspaceName[0]?.toUpperCase() ?? "A"}
+                {(isWhiteLabel ? workspaceName[0] : "A")?.toUpperCase() ?? "A"}
               </div>
             )}
           </div>
@@ -118,15 +124,21 @@ export default function PortalSidebar({
         {NAV.map((item) => {
           const active = isActive(item.href);
           const Icon = item.icon;
+          const activeClass = active
+            ? isWhiteLabel
+              ? "shadow-sm"
+              : "text-primary bg-primary/10 shadow-sm"
+            : "text-muted-foreground hover:text-foreground hover:bg-secondary/50";
           return (
             <Link
               key={item.href}
               href={item.href}
               title={collapsed ? item.label : undefined}
-              className={`flex items-center gap-3 rounded-xl font-medium transition-all ${collapsed ? "justify-center px-0 py-3" : "px-3 py-2.5"} ${active
-                ? "text-primary bg-primary/10 shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                }`}
+              className={`flex items-center gap-3 rounded-xl font-medium transition-all ${collapsed ? "justify-center px-0 py-3" : "px-3 py-2.5"} ${activeClass}`}
+              style={active && isWhiteLabel && activeColor ? {
+                backgroundColor: `${activeColor}18`,
+                color: activeColor,
+              } : undefined}
             >
               <Icon className="w-[18px] h-[18px] flex-shrink-0" />
               {!collapsed && <span className="text-[14px]">{item.label}</span>}

@@ -47,11 +47,11 @@ export default async function PortalProgressPage() {
 
     if (!client) redirect("/dashboard");
 
-    // Get the latest complete session for this client in the workspace
+    // Get the latest complete session for this client
     const { data: session } = await supabase
       .from("audit_sessions")
       .select("id")
-      .eq("workspace_id", client.workspace_id)
+      .eq("client_id", client.id)
       .eq("status", "complete")
       .order("completed_at", { ascending: false })
       .limit(1)
@@ -87,7 +87,7 @@ export default async function PortalProgressPage() {
     }
   }
 
-  const completed = items.filter((i) => i.status === "complete");
+  const completed = items.filter((i) => i.status === "done");
   const totalHrs = items.reduce((s, i) => s + Number(i.time_saved_hrs ?? 0), 0);
   const savedHrs = completed.reduce((s, i) => s + Number(i.time_saved_hrs ?? 0), 0);
   const pct = items.length > 0 ? Math.round((completed.length / items.length) * 100) : 0;
@@ -155,7 +155,7 @@ export default async function PortalProgressPage() {
                 <div className="bg-card shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-3xl overflow-hidden border border-border/40 p-2">
                   <div className="divide-y divide-border/10">
                     {group.map((item) => {
-                      const done = item.status === "complete";
+                      const done = item.status === "done";
                       return (
                         <div
                           key={item.id}

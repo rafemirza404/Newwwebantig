@@ -4,20 +4,7 @@ import { createSupabaseServerClient } from "~/lib/supabase/server";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { isDemoMode, DEMO_DIRECT_AUDITS, DEMO_AGENCY_AUDITS } from "~/lib/mock/mockData";
-
-const STATUS_LABELS: Record<string, string> = {
-  in_progress: "In Progress",
-  processing: "Processing",
-  complete: "Complete",
-  abandoned: "Abandoned",
-};
-
-const STATUS_STYLES: Record<string, string> = {
-  in_progress: "bg-amber-500/10 text-amber-500 border border-amber-500/20",
-  processing: "bg-blue-500/10 text-blue-500 border border-blue-500/20",
-  complete: "bg-primary/10 text-primary border border-primary/20",
-  abandoned: "bg-secondary text-muted-foreground border border-border/50",
-};
+import AuditsClient from "~/components/dashboard/audits/AuditsClient";
 
 export default async function AuditsPage() {
   let sessions: any[] = [];
@@ -39,7 +26,6 @@ export default async function AuditsPage() {
       .eq("id", user.id)
       .single();
 
-    // Respect view_mode cookie for page-level behavior
     const cookieStore = cookies();
     const cookieMode = cookieStore.get("view_mode")?.value;
     const effectiveType = (cookieMode && ["direct", "agency_owner"].includes(cookieMode))
@@ -49,7 +35,6 @@ export default async function AuditsPage() {
     isAgency = effectiveType === "agency_owner";
 
     if (isAgency) {
-      // Agency: fetch audits belonging to the workspace
       const { data: workspace } = await supabase
         .from("workspaces")
         .select("id")
@@ -59,17 +44,18 @@ export default async function AuditsPage() {
       if (workspace) {
         const { data } = await supabase
           .from("audit_sessions")
-          .select("id, business_name, status, mode, started_at, completed_at, question_count")
+          .select("id, business_name, status, mode, started_at, completed_at, question_count, archived_at")
           .eq("workspace_id", workspace.id)
           .order("started_at", { ascending: false });
         sessions = data ?? [];
       }
     } else {
-      // Direct: fetch by user_id
+      // Direct mode: exclude agency client audits (those have workspace_id set)
       const { data } = await supabase
         .from("audit_sessions")
-        .select("id, business_name, status, mode, started_at, completed_at, question_count")
+        .select("id, business_name, status, mode, started_at, completed_at, question_count, archived_at")
         .eq("user_id", user.id)
+        .is("workspace_id", null)
         .order("started_at", { ascending: false });
       sessions = data ?? [];
     }
@@ -93,65 +79,7 @@ export default async function AuditsPage() {
         </Link>
       </div>
 
-      {sessions.length === 0 ? (
-        <div className="bg-card border-none shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] rounded-2xl p-12 text-center">
-          <p className="text-foreground font-medium mb-2">No audits yet</p>
-          <p className="text-muted-foreground text-sm mb-6">
-            {isAgency
-              ? "No audits have been run for your workspace clients yet."
-              : "Start your first audit to get AI-powered business insights."}
-          </p>
-          <Link
-            href="/audit/new"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-full transition-colors"
-          >
-            <Plus className="w-4 h-4 text-primary-foreground" />
-            Start Audit
-          </Link>
-        </div>
-      ) : (
-        <div className="bg-card border-none shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] rounded-2xl overflow-hidden">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="text-muted-foreground text-xs uppercase tracking-wide border-b border-border/10 bg-secondary/20">
-                <th className="font-medium px-5 py-4">Business</th>
-                <th className="font-medium px-5 py-4">Status</th>
-                <th className="font-medium px-5 py-4">Questions</th>
-                <th className="font-medium px-5 py-4">Started</th>
-                <th className="font-medium px-5 py-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/10">
-              {sessions.map((session: any) => (
-                <tr key={session.id} className="hover:bg-secondary/20 transition-colors group">
-                  <td className="px-5 py-4 text-foreground text-sm font-medium">{session.business_name}</td>
-                  <td className="px-5 py-4">
-                    <span className={`text-[10px] font-semibold tracking-wider uppercase px-2.5 py-1.5 rounded-full ${STATUS_STYLES[session.status] ?? "bg-secondary text-muted-foreground border border-border/50"}`}>
-                      {STATUS_LABELS[session.status] ?? session.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-muted-foreground text-sm">{session.question_count ?? 0}</td>
-                  <td className="px-5 py-4 text-muted-foreground text-sm">
-                    {new Date(session.started_at).toLocaleDateString('en-US')}
-                  </td>
-                  <td className="px-5 py-4 flex items-center gap-3">
-                    {session.status === "in_progress" && (
-                      <Link href={`/audit/${session.id}`} className="inline-flex items-center justify-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors">
-                        Resume
-                      </Link>
-                    )}
-                    {session.status === "complete" && (
-                      <Link href={`/dashboard/reports`} className="inline-flex items-center justify-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
-                        View Report
-                      </Link>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <AuditsClient sessions={sessions} isAgency={isAgency} />
     </div>
   );
 }

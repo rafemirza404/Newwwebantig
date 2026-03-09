@@ -15,6 +15,9 @@ const SKIP_AUTH = (pathname: string) =>
   pathname.startsWith("/privacy") ||
   pathname.startsWith("/api/") ||      // API routes handle auth themselves
   pathname.startsWith("/auth/") ||     // Auth callback handles itself
+  pathname.startsWith("/portal/login") ||     // Portal public auth pages
+  pathname.startsWith("/portal/signup") ||
+  pathname.startsWith("/portal/reset-password") ||
   pathname.startsWith("/_next/") ||
   pathname.includes(".");              // Static files missed by matcher
 
@@ -28,12 +31,16 @@ export async function middleware(request: NextRequest) {
 
   // Fast path: skip Supabase entirely for public/API routes
   if (SKIP_AUTH(pathname)) {
-    return NextResponse.next();
+    const res = NextResponse.next();
+    res.headers.set("x-pathname", pathname);
+    return res;
   }
 
   let response = NextResponse.next({
     request: { headers: request.headers },
   });
+  // Expose current pathname to server components (e.g. portal layout)
+  response.headers.set("x-pathname", pathname);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -80,6 +87,16 @@ export async function middleware(request: NextRequest) {
     // Other errors (e.g. network blip) — treat as logged out but don't clear cookies
   }
 
+  // Portal client users — redirect away from agency/dashboard routes immediately
+  // Use user_metadata to avoid a DB call in middleware
+  const isPortalClient = user?.user_metadata?.user_type === "client";
+  if (isPortalClient) {
+    const agencyRoutes = ["/dashboard", "/audit", "/onboarding", "/report"];
+    if (agencyRoutes.some((p) => pathname.startsWith(p))) {
+      return NextResponse.redirect(new URL("/portal", request.url));
+    }
+  }
+
   // Protect authenticated routes
   const protectedPaths = ["/dashboard", "/audit", "/report", "/portal", "/onboarding"];
   if (protectedPaths.some((p) => pathname.startsWith(p)) && !user) {
@@ -91,6 +108,9 @@ export async function middleware(request: NextRequest) {
   // Redirect already-logged-in users away from auth pages
   const authPages = ["/login", "/signup"];
   if (authPages.some((p) => pathname.startsWith(p)) && user) {
+    if (isPortalClient) {
+      return NextResponse.redirect(new URL("/portal", request.url));
+    }
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

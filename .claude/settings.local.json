@@ -22,7 +22,21 @@
       "mcp__supabase__list_extensions",
       "Bash(sed:*)",
       "Skill(gsd:progress)",
-      "mcp__supabase__get_advisors"
+      "mcp__supabase__get_advisors",
+      "Bash(supabase:*)",
+      "mcp__TestSprite__testsprite_generate_standardized_prd",
+      "mcp__TestSprite__testsprite_bootstrap",
+      "mcp__TestSprite__testsprite_generate_frontend_test_plan",
+      "mcp__TestSprite__testsprite_generate_code_and_execute",
+      "Bash(pnpm:*)",
+      "mcp__shadcn__list_items_in_registries",
+      "mcp__shadcn__get_add_command_for_items",
+      "mcp__shadcn__view_items_in_registries",
+      "Bash(powershell:*)",
+      "Bash(npx tsc:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_type"
     ]
   },
   "enableAllProjectMcpServers": true,

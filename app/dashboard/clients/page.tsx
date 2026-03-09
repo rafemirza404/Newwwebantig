@@ -3,9 +3,11 @@ import { createSupabaseServerClient } from "~/lib/supabase/server";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { isDemoMode, DEMO_CLIENTS } from "~/lib/mock/mockData";
+import { InviteButton } from "~/components/dashboard/clients/InviteButton";
 
 export default async function ClientsPage() {
   let clients: any[] = [];
+  let invitesByClientId: Record<string, boolean> = {};
 
   if (isDemoMode()) {
     clients = DEMO_CLIENTS;
@@ -23,12 +25,23 @@ export default async function ClientsPage() {
     const { data } = workspace
       ? await supabase
         .from("clients")
-        .select("id, business_name, contact_email, industry, company_size, created_at")
+        .select("id, business_name, contact_email, industry, company_size, created_at, client_user_id")
         .eq("workspace_id", workspace.id)
         .order("created_at", { ascending: false })
       : { data: [] };
 
     clients = data ?? [];
+
+    if (clients.length > 0) {
+      const clientIds = clients.map((c: any) => c.id);
+      const { data: invites } = await supabase
+        .from("client_invites")
+        .select("client_id")
+        .in("client_id", clientIds);
+      for (const inv of invites ?? []) {
+        invitesByClientId[inv.client_id] = true;
+      }
+    }
   }
 
   return (
@@ -81,12 +94,22 @@ export default async function ClientsPage() {
                     {new Date(client.created_at).toLocaleDateString('en-US')}
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <Link
-                      href={`/dashboard/clients/${client.id}`}
-                      className="inline-flex items-center justify-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
-                    >
-                      View
-                    </Link>
+                    <div className="flex items-center justify-end gap-2">
+                      {!isDemoMode() && (
+                        <InviteButton
+                          clientId={client.id}
+                          hasPortalAccess={!!client.client_user_id}
+                          hasInvite={!!invitesByClientId[client.id]}
+                          compact
+                        />
+                      )}
+                      <Link
+                        href={`/dashboard/clients/${client.id}`}
+                        className="inline-flex items-center justify-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
+                      >
+                        View
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

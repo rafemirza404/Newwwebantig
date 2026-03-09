@@ -1,37 +1,30 @@
 "use client";
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
+import "../(marketing)/marketing.css";
+import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
+import { TooltipProvider } from "~/components/ui/tooltip";
+import MarketingNav from "~/components/marketing/MarketingNav";
+import MarketingFooter from "~/components/marketing/MarketingFooter";
+import { Toaster } from "~/components/ui/toaster";
+import { Toaster as Sonner } from "~/components/ui/sonner";
 
-// Lazy-loaded feature components (keep existing marketing features)
-import dynamic from "next/dynamic";
-
-const Chatbot = dynamic(() => import("@/components/features/chatbot/Chatbot"), {
-  ssr: false,
-});
-const VoiceCallButton = dynamic(
-  () => import("@/components/features/voice-call/VoiceCallButton"),
-  { ssr: false }
-);
+const queryClient = new QueryClient();
 
 export default function MarketingLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [queryClient] = useState(() => new QueryClient());
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        {children}
+        <div className="marketing-page min-h-screen flex flex-col">
+          <MarketingNav />
+          <main className="flex-1">{children}</main>
+          <MarketingFooter />
+        </div>
         <Toaster />
         <Sonner />
-        <Chatbot />
-        <VoiceCallButton />
       </TooltipProvider>
     </QueryClientProvider>
   );

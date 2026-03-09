@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "~/lib/supabase/server";
 import Sidebar from "~/components/dashboard/sidebar/Sidebar";
 import DashboardHeaderWrapper from "~/components/dashboard/shared/DashboardHeaderWrapper";
+import { CommandPalette } from "~/components/dashboard/shared/CommandPalette";
 import { isDemoMode, DEMO_PROFILE, DEMO_WORKSPACE } from "~/lib/mock/mockData";
 import type { UserType } from "~/lib/supabase/client";
 
@@ -39,6 +40,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
           {children}
         </main>
+        <CommandPalette isAgency={effectiveUserType === "agency_owner"} />
       </div>
     );
   }
@@ -96,6 +98,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
         {children}
       </main>
+      <CommandPalette isAgency={effectiveUserType === "agency_owner"} />
     </div>
   );
 }

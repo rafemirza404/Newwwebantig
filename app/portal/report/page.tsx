@@ -67,7 +67,7 @@ export default async function PortalReportPage() {
   const { data: session } = await supabase
     .from("audit_sessions")
     .select("id, business_name, industry")
-    .eq("workspace_id", client.workspace_id)
+    .eq("client_id", client.id)
     .eq("status", "complete")
     .order("completed_at", { ascending: false })
     .limit(1)
@@ -93,7 +93,7 @@ export default async function PortalReportPage() {
   const { data: report } = await supabase
     .from("reports")
     .select(
-      "id, overall_score, function_scores, business_summary, full_gaps, solutions, roi_analysis, created_at"
+      "id, overall_score, function_scores, business_summary, full_gaps, solutions, roi_analysis, gap_analysis_narrative, created_at"
     )
     .eq("session_id", session.id)
     .single();
@@ -123,7 +123,21 @@ export default async function PortalReportPage() {
   const gaps = (report.full_gaps as Gap[]) ?? [];
   const solutions = (report.solutions as Solution[]) ?? [];
   const roiAnalysis = (report.roi_analysis as RoiAnalysis) ?? {};
-  const functionScores = (report.function_scores as Record<string, number>) ?? {};
+  // Normalize function_scores: DB may store rich objects {score, industry_average, status}
+  const rawFunctionScores = (report.function_scores as Record<string, number | { score: number; industry_average?: number; status?: string; score_rationale?: string }>) ?? {};
+  const functionScores: Record<string, number> = Object.fromEntries(
+    Object.entries(rawFunctionScores).map(([k, v]) => [
+      k,
+      typeof v === "number" ? v : (v as { score: number }).score ?? 0,
+    ])
+  );
+  const richFunctionScores = Object.fromEntries(
+    Object.entries(rawFunctionScores).map(([k, v]) => [
+      k,
+      typeof v === "number" ? { score: v } : v,
+    ])
+  ) as Record<string, { score: number; industry_average?: number; status?: "below" | "on_par" | "above"; score_rationale?: string }>;
+  const gapNarrative = (report as Record<string, unknown>).gap_analysis_narrative as string | null ?? null;
   const createdAt = new Date(report.created_at ?? "").toLocaleDateString("en-US", {
     month: "short", day: "numeric", year: "numeric",
   });
@@ -146,9 +160,10 @@ export default async function PortalReportPage() {
         <ScoreSection
           overall={report.overall_score ?? 0}
           functionScores={functionScores}
+          richFunctionScores={richFunctionScores}
           summary={report.business_summary ?? ""}
         />
-        <GapsSection gaps={gaps} teaserGap={null} isPro={true} />
+        <GapsSection gaps={gaps} teaserGap={null} isPro={true} narrative={gapNarrative} />
         <SolutionsSection solutions={solutions} isPro={true} />
         <ROISection roi={roiAnalysis} totalRoiSummary={null} isPro={true} />
       </div>

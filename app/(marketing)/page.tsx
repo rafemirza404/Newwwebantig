@@ -1,58 +1,29 @@
-export const dynamic = "force-dynamic";
+import HeroSection from "~/components/marketing/sections/HeroSection";
+import SocialProofSection from "~/components/marketing/sections/SocialProofSection";
+import HowItWorksSection from "~/components/marketing/sections/HowItWorksSection";
+import FeatureGridSection from "~/components/marketing/sections/FeatureGridSection";
+import AudienceSection from "~/components/marketing/sections/AudienceSection";
+import TestimonialsSection from "~/components/marketing/sections/TestimonialsSection";
+import FAQSection from "~/components/marketing/sections/FAQSection";
+import FinalCTASection from "~/components/marketing/sections/FinalCTASection";
 
-import Navigation from "~/components/marketing/Navigation";
-import NewHero from "~/components/marketing/NewHero";
-import LaunchVideo from "@/components/LaunchVideo";
-import HowItWorks from "@/components/HowItWorks";
-import WhyDifferent from "@/components/WhyDifferent";
-import FAQ from "@/components/FAQ";
-import FinalCTA from "@/components/FinalCTA";
-import AssessmentForm from "@/components/AssessmentForm";
-import Footer from "@/components/Footer";
+export const metadata = {
+  title: "AgentBlue — AI Operations Audit Platform",
+  description:
+    "Find automation gaps costing you thousands. The AI audit platform that diagnoses gaps across 8 business functions — with solutions, ROI, and a roadmap in under 10 minutes.",
+};
 
-// Toggle to true when VSL video is ready
-const SHOW_VIDEO_DEMO = false;
-
-export default function HomePage() {
+export default function MarketingPage() {
   return (
-    <div className="min-h-screen">
-      <Navigation />
-      <main>
-        <section id="hero">
-          <NewHero />
-        </section>
-
-        <section id="launch-video">
-          <LaunchVideo />
-        </section>
-
-        <section id="how-we-work">
-          <HowItWorks />
-        </section>
-
-        <section id="why-different">
-          <WhyDifferent />
-        </section>
-
-        {SHOW_VIDEO_DEMO && (
-          <section id="video-demo">
-            {/* VideoDemo — enable when VSL ready */}
-          </section>
-        )}
-
-        <section id="faq">
-          <FAQ />
-        </section>
-
-        <section id="final-cta">
-          <FinalCTA />
-        </section>
-
-        <section id="contact-form-section">
-          <AssessmentForm />
-        </section>
-      </main>
-      <Footer />
-    </div>
+    <>
+      <HeroSection />
+      <SocialProofSection />
+      <HowItWorksSection />
+      <FeatureGridSection />
+      <AudienceSection />
+      <TestimonialsSection />
+      <FAQSection />
+      <FinalCTASection />
+    </>
   );
 }

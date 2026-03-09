@@ -192,6 +192,20 @@ export default async function ReportPage({ params, searchParams }: Props) {
         industry={session?.industry ?? null}
         createdAt={report?.created_at ?? ""}
         isPro={isPro}
+        reportData={isPro ? {
+          overallScore: report?.overall_score ?? 0,
+          businessSummary: report?.business_summary ?? "",
+          businessProfile: businessProfile,
+          functionScores: richFunctionScores,
+          gaps: gapsToShow,
+          gapNarrative: (report?.gap_analysis_narrative as string) ?? null,
+          solutions: solutions,
+          roiAnalysis: roiAnalysis,
+          totalRoiSummary: totalRoiSummary,
+          roadmap: roadmap,
+          industry: session?.industry ?? null,
+          createdAt: report?.created_at ?? "",
+        } : undefined}
       />
 
       <div id="report-content" className="max-w-[1400px] mx-auto px-6 pb-20 mt-10 space-y-12">

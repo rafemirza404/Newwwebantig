@@ -57,6 +57,18 @@ export async function getUser() {
   return user;
 }
 
+/**
+ * Service role client — bypasses RLS. Use only for server-side operations
+ * that need to read data without user auth context (e.g. shared report tokens).
+ */
+export function createServiceRoleClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  );
+}
+
 // Get profile + user_type for the current user
 export async function getUserProfile() {
   const supabase = createSupabaseServerClient();

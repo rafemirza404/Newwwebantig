@@ -1,8 +1,8 @@
 # Application Major Fixes — Master Plan
 
-> **Status:** Phase 1 ✅ complete, Phase 2.1 ✅ complete, Phases 2.2–7 pending.
+> **Status:** Phase 1 ✅ · 2.1 ✅ · 2.2 ✅ · 2.3 ✅ · 3 ✅ · 4.1 ✅ · 4.2 ✅ · 4.3 ✅ · 5 ✅ · 6.1 ✅ · 6.2 ✅ · Client Portal ✅ · Data Isolation Bug ✅. Phases 7–12 pending.
 > **Stack:** Next.js 14 App Router · TypeScript · Supabase · Tailwind · OpenAI
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-03-07
 
 ---
 
@@ -132,7 +132,7 @@ workspace_members (0 rows), case_studies (0 rows), invites (0 rows)
   </files>
   <action>
     - Render `<CommandPalette />` in `layout.tsx` (once, globally)
-    - In `Sidebar.tsx`: Replace the read-only search input (lines 154–167) with a button that triggers the command palette
+    - In `Sidebar.tsx`: Replace the read-only search input (around line 155–165, has `toast.info("Search feature is coming soon!")`) with a button that triggers the command palette
     - In `DashboardHeader.tsx`: Replace the search dropdown (lines 141–207) with a button that triggers the command palette
     AVOID: Don't wire search results through props — palette fetches its own data.
   </action>
@@ -283,15 +283,16 @@ workspace_members (0 rows), case_studies (0 rows), invites (0 rows)
 <task type="auto">
   <name>Build per-client detail page with tabs</name>
   <files>
-    app/dashboard/clients/[id]/page.tsx (REWRITE)
+    app/dashboard/clients/[clientId]/page.tsx (REWRITE — file already exists, basic layout only)
     components/dashboard/agency/ClientDetailTabs.tsx (NEW)
   </files>
   <action>
     Rewrite client detail page with tabbed navigation. Data chain: `clients.id` → `audit_sessions.client_id` → `reports.session_id`.
+    NOTE: Param is `params.clientId` (not `params.id`) — the route is `[clientId]`.
 
     - **Overview tab:** Client info from `clients` table (business_name, industry, company_size, contact_email), latest audit score from `reports.overall_score`, recent activity
-    - **Audits tab:** `audit_sessions` WHERE client_id = params.id, with status badges
-    - **Reports tab:** `reports` JOIN `audit_sessions` WHERE client_id = params.id
+    - **Audits tab:** `audit_sessions` WHERE client_id = params.clientId, with status badges
+    - **Reports tab:** `reports` JOIN `audit_sessions` WHERE client_id = params.clientId
     - **Analytics tab:** `reports.function_scores` (jsonb) for this client's audits
 
     Use searchParams for tab state (e.g. `?tab=audits`).
@@ -414,72 +415,43 @@ workspace_members (0 rows), case_studies (0 rows), invites (0 rows)
 - `reports` needs: `share_token` (uuid, nullable) and `is_shared` (boolean, default false) for Plan 6.2
 - No schema changes for Plan 6.1 (PDF is client-side only)
 
-#### Plan 6.1 — PDF Export
+#### Plan 6.1 — PDF Export ✅ COMPLETE
 
-<task type="auto">
-  <name>Add PDF download button to report page</name>
-  <files>
-    app/report/[reportId]/_components/ReportHeader.tsx
-    lib/pdf/generateReportPDF.ts (NEW)
-  </files>
-  <action>
-    **Recommended approach:** Client-side with `html2canvas` + `jsPDF`.
-    - Add "Download PDF" button in ReportHeader
-    - On click: capture report container as canvas → PDF → trigger download
-    
-    Gate behind Pro plan — check `profiles.plan === 'pro'`. Free users see disabled button with upgrade prompt.
-    
-    Report data comes from `reports` table (overall_score, function_scores, full_gaps, solutions, roi_analysis, roadmap, etc).
-    AVOID: Don't recreate report layout in a PDF template — screenshot the rendered page.
-  </action>
-  <verify>
-    - "Download PDF" visible for Pro users
-    - Clicking generates and downloads a PDF
-    - Free users see disabled button with upgrade prompt
-  </verify>
-  <done>Pro users can download reports as PDF.</done>
-</task>
+**Built:** `@react-pdf/renderer` for proper text-based PDF (selectable, copyable text). `html2canvas` used ONLY for mermaid workflow diagram screenshots embedded as images.
 
-#### Plan 6.2 — Shareable Report Links
+**PDF structure:** Cover page (dark, score + stats) → Business Snapshot → Function Score bars → Gaps (severity + cost) → Solutions (tools + ROI) → ROI Analysis → Roadmap (3 phases) → Diagrams (screenshot images).
 
-<task type="auto">
-  <name>Add share_token and is_shared columns to reports</name>
-  <files>
-    Supabase schema change (alter table)
-  </files>
-  <action>
-    Add to `reports` table:
-    - `share_token` (uuid, nullable) — the secret token for public access
-    - `is_shared` (boolean, default false) — whether sharing is enabled
-  </action>
-  <verify>Both columns exist on reports table.</verify>
-  <done>Share schema ready.</done>
-</task>
+**Files changed:**
+- `app/report/[reportId]/_components/ReportPDF.tsx` (NEW) — react-pdf Document component
+- `app/report/[reportId]/_components/ReportActions.tsx` — replaced html2canvas full-page approach with react-pdf; added `reportData` prop
+- `app/report/[reportId]/_components/ReportHeader.tsx` — added `reportData` prop, passes to ReportActions
+- `app/report/[reportId]/page.tsx` — assembles `reportData` object and passes to ReportHeader (Pro users only)
+- `app/report/[reportId]/_components/DiagramSection.tsx` — added `data-diagram-card` attribute for targeted screenshot
+- `next.config.js` — added `@react-pdf/renderer` to serverComponentsExternalPackages
+- `package.json` — fixed invalid `@radix-ui/react-aspect-ratio@^1.1b.7` version, added `@react-pdf/renderer`
 
-<task type="auto">
-  <name>Build share API + public report access</name>
-  <files>
-    app/api/report/[reportId]/share/route.ts (NEW)
-    app/report/[reportId]/page.tsx
-    app/report/[reportId]/_components/ReportHeader.tsx
-  </files>
-  <action>
-    **API route:** POST `/api/report/[reportId]/share`
-    - Generate UUID share_token, UPDATE on `reports` table, set is_shared=true
-    - Return public URL: `/report/[reportId]?token=[share_token]`
+#### Plan 6.2 — Shareable Report Links ✅ COMPLETE
 
-    **Report page:** If `?token=X` present, validate against `reports.share_token` (bypass auth). If valid → render read-only. If invalid → redirect to login.
+**Built:** Share button → POST `/api/report/[reportId]/share` → generates UUID token, sets `is_shared=true`. Report page reads `?token=` param, validates against `share_token`, renders read-only shared view (no auth). Invalid token → redirect to login.
 
-    **UI:** "Share" button in ReportHeader → modal with the link + copy button.
-    AVOID: Don't make reports public by default — only when user clicks Share.
-  </action>
-  <verify>
-    - "Share" generates a copyable link
-    - Link works in incognito without login
-    - Invalid token redirects to login
-  </verify>
-  <done>Reports shareable via public tokenized link.</done>
-</task>
+**Notes:** This was already fully built before the 2026-03-07 session (DB columns, API route, UI, shared view in page.tsx). Confirmed complete by checking codebase.
+
+**Only useful for direct users** — agency users already have a full client portal login system.
+
+---
+
+---
+
+### Bug Fix — Agency/Direct Mode Data Isolation ✅ FIXED (2026-03-07)
+
+**Root cause:** Agency client audits store `user_id = agency_owner_id` on both `audit_sessions` and `reports`. Direct mode queries used `.eq("user_id", user.id)` alone — accidentally pulling in agency reports too.
+
+**Key insight:** `workspace_id IS NULL` = personal/direct audit. `workspace_id IS NOT NULL` = agency client audit. This is the clean boundary.
+
+**Fix applied in 3 files:**
+- `app/dashboard/reports/page.tsx` — Direct mode now fetches sessions where `workspace_id IS NULL` first, gets reports by those session IDs
+- `app/dashboard/audits/page.tsx` — Direct mode sessions query adds `.is("workspace_id", null)`
+- `app/dashboard/page.tsx` — Direct mode sessions + latest report scoped to `workspace_id IS NULL` sessions
 
 ---
 
@@ -527,6 +499,116 @@ workspace_members (0 rows), case_studies (0 rows), invites (0 rows)
 
 ---
 
+### Phase 8 — Re-Audit System (Before/After Score Comparison)
+
+**Objective:** Let users re-take the audit for the same business and see how their score improved.
+
+**Database impact:** Add `previous_session_id` (uuid FK → audit_sessions.id, nullable) to `audit_sessions`.
+
+**What already exists:**
+- Audit creation flow (`audit/new/page.tsx`) ✅
+- Analytics score history chart (`analytics/page.tsx:248-273`) ✅
+- Report page with full score + function breakdown ✅
+
+**What to build:**
+
+1. **"Re-Audit" button on report page** — Add to `ReportHeader.tsx`. Creates new `audit_sessions` row with same `business_name`, `industry`, `client_id`, `workspace_id` and sets `previous_session_id` to the original session.
+
+2. **Score Comparison component** — After completing a re-audit, show side-by-side: Old Score → New Score, with per-function deltas (e.g., "Marketing: 45 → 72 (+27)"). Query the 2 most recent reports for the same business.
+
+3. **"Business Health Over Time" dashboard card** — Line chart of `overall_score` across all audits for the same business. Reuse on both dashboard and portal.
+
+---
+
+### Phase 9 — Focused Progress Dashboard Enhancements
+
+**Objective:** Transform progress page from checklist to automation coach.
+
+**Database impact:** Already covered in Phase 3 (`started_at`, `notes`). Additional: `guide_content` (jsonb, nullable) on `implementation_items` for Phase 11.
+
+**What already exists:**
+- Full progress page with KPIs, dropdown, confirmation, timeline (438 lines) ✅
+- Priority grouping with progress bars ✅
+- `time_saved_hrs` on each item ✅
+
+**What to build:**
+
+1. **"This Month's Focus" section** — Auto-select top 2-3 items (prioritize `quick_win` + `not_started`). Show as prominent cards with context from the report's `solutions` array (match via `gap_name`).
+
+2. **Estimated Score section** — Show current score + *"Based on what you've completed, we estimate your score would now be ~X. Take a re-audit to confirm."* Simple formula: `quick_win` done = +2 pts, `medium` = +4 pts, `strategic` = +8 pts. Explicitly labeled as estimate.
+
+3. **Time context fix** — Change badge from "20h" to "20 hrs/month" (copy change only).
+
+4. **Notes field** — Expandable text area under each item. Saves via PATCH to `/api/progress`.
+
+---
+
+### Phase 10 — Client ROI Report (Agency Deliverable)
+
+**Objective:** Auto-generate an ROI report agencies can send to clients.
+
+**Database impact:** Add `hourly_rate` (numeric, nullable) to `profiles`.
+
+**What already exists:**
+- Report page with 7 sections (Score, Gaps, Solutions, ROI, Diagrams, Roadmap) ✅
+- `ReportActions.tsx` with share functionality ✅
+- `roi_analysis` jsonb with `estimated_hrs_saved_monthly`, `total_cost_saved_per_year` ✅
+- Implementation items with `status`, `time_saved_hrs`, `completed_at` ✅
+
+**What to build:**
+
+1. **ROI Summary page** — `/dashboard/clients/[id]/roi` or tab on client detail. Aggregates: items recommended vs completed, total hours saved, dollar savings (if hourly rate set), score progression (first → latest audit).
+
+2. **PDF Export** — "Generate ROI Report" button. Client-side `html2canvas` + `jsPDF`. Captures: client name, date range, score progression, items completed, estimated savings.
+
+3. **Hourly rate in settings** — Users set their rate → `time_saved_hrs` converts to dollar amounts throughout the app.
+
+---
+
+### Phase 11 — AI Implementation Guides
+
+**Objective:** Surface step-by-step implementation guidance from existing report data.
+
+**Database impact:** Add `guide_content` (jsonb, nullable) to `implementation_items`.
+
+**What already exists:**
+- Each `Solution` already has: `how_it_works`, `solution_description`, `primary_tools`, `new_tools_required`, `implementation_complexity` ✅
+- `implementation_items.gap_name` matches `solutions[].name` ✅
+
+**What to build:**
+
+1. **"How to Implement" expandable on progress page** — Show `how_it_works`, `primary_tools`, `implementation_complexity` from the matching solution. No AI call needed — data already exists in the report.
+
+2. **AI Deep Guide (Pro feature)** — "Generate Guide" button per item. Calls OpenAI with context: business_name, industry, company_size, specific gap, solution, existing tool stack (`detected_tool_stack`). Produces 5-10 step actionable guide. Cached in `guide_content` column.
+
+3. **Report → Progress link** — Add "Track Implementation →" button on each solution in SolutionsSection, linking to progress page.
+
+---
+
+### Phase 12 — Client Portal Enhancements
+
+**Objective:** Improve portal value and enable the client invite flow.
+
+**Database impact:** None — all schema exists. `invites` table ready but unused. `clients.client_user_id` ready.
+
+**What already exists:**
+- Portal layout with branded sidebar (`logo_url`, `brand_color`) ✅ (80 lines)
+- Portal report page with full Score, Gaps, Solutions, ROI sections ✅ (158 lines)
+- Portal progress page with item status ✅ (211 lines)
+- Portal history + settings pages ✅
+- `invites` table (0 rows — schema complete with `email`, `token`, `expires_at`, `accepted_at`) ✅
+- `clients.client_user_id` FK ready ✅
+
+**What to build:**
+
+1. **Score comparison on portal** — If client has multiple audits, show score progression on portal report page (reuse component from Phase 8).
+
+2. **Portal activity feed** — Timeline: "March 1 — New report generated", "Feb 15 — 3 recommendations completed". Shows on portal homepage (currently just redirects to `/portal/report`).
+
+3. **Client invite flow** — "Invite to Portal" button on client detail page (agency mode). Sends email with signup link containing invite token (uses `invites` table). On signup → links `clients.client_user_id` to new user → enables portal access.
+
+---
+
 ## Execution Order & Dependencies
 
 ```
@@ -547,8 +629,17 @@ Wave 4 (schema change for 6.2):
 ├── Phase 6.1: PDF Export (no schema change)
 └── Phase 6.2: Shareable Report Links (ADD share_token, is_shared to reports)
 
-Wave 5:
-└── Phase 7: Performance Optimization (last — profile after all features built)
+Wave 5 (deep features — schema changes needed):
+├── Phase 8: Re-Audit System (ADD previous_session_id to audit_sessions)
+├── Phase 9: Progress Dashboard Enhancements (uses Phase 3 schema)
+├── Phase 10: Client ROI Report (ADD hourly_rate to profiles)
+└── Phase 11: AI Implementation Guides (ADD guide_content to implementation_items)
+
+Wave 6 (depends on Wave 5):
+├── Phase 12: Client Portal Enhancements (depends on Phase 8 for score comparison)
+
+Wave 7:
+└── Phase 7: Performance Optimization (always last — profile after all features built)
 ```
 
 ---
@@ -561,16 +652,23 @@ Wave 5:
 | 1.2 | Hide upgrade for Pro users | No | ✅ Done | — |
 | 1.3 | Settings missing fields | No (columns exist) | ✅ Done | — |
 | 2.1 | Global header on all pages | No | ✅ Done | — |
-| 2.2 | Cmd+K command palette | No | ⬜ Pending | 1 |
-| 2.3 | Notification system | **NEW table** | ⬜ Pending | 2 |
-| 3.1 | Progress redesign | **ADD 2 columns** to implementation_items | ⬜ Pending | 2 |
-| 4.1 | Per-client dashboard | No | ⬜ Pending | 3 |
-| 4.2 | Audits/Reports filters | No | ⬜ Pending | 3 |
-| 4.3 | Analytics navigation | No | ⬜ Pending | 3 |
-| 5.1 | Archive & restore | **ADD column** to audit_sessions + reports | ⬜ Pending | 2 |
-| 6.1 | PDF export | No | ⬜ Pending | 4 |
-| 6.2 | Shareable links | **ADD 2 columns** to reports | ⬜ Pending | 4 |
-| 7.1 | Performance optimization | Possible indexes | ⬜ Pending | 5 |
+| 2.2 | Cmd+K command palette | No | ✅ Done | 1 |
+| 2.3 | Notification system | NEW table | ✅ Done | 2 |
+| 3 | Progress page redesign | ADD 2 cols to impl_items | ✅ Done | 2 |
+| 4.1 | Per-client dashboard | No | ✅ Done | 3 |
+| 4.2 | Audits/Reports filters | No | ✅ Done | 3 |
+| 4.3 | Analytics per-client nav | No | ✅ Done | 3 |
+| 5 | Archive & restore | ADD archived_at to 2 tables | ✅ Done | 2 |
+| 6.1 | PDF export (proper text PDF) | No | ✅ Done | 4 |
+| 6.2 | Shareable links | ADD share_token, is_shared | ✅ Done | 4 |
+| — | Client portal login + white-label | NEW client_invites table | ✅ Done | — |
+| — | Agency/Direct data isolation bug | No | ✅ Done | — |
+| 7 | Performance optimization | Possible indexes | ⬜ Pending | 7 |
+| 8 | Re-Audit System | ADD previous_session_id | ⬜ Pending | 5 |
+| 9 | Focused Progress Dashboard | No (uses Phase 3 schema) | ⬜ Pending | 5 |
+| 10 | Client ROI Report | ADD hourly_rate to profiles | ⬜ Pending | 5 |
+| 11 | AI Implementation Guides | ADD guide_content to impl_items | ⬜ Pending | 5 |
+| 12 | Client Portal Enhancements | No (schema ready) | ⬜ Pending | 6 |
 
 ### Total Schema Changes Required
 
@@ -578,6 +676,9 @@ Wave 5:
 |-------|--------|-----------|
 | (new) `notifications` | Create entire table | 2.3 |
 | `implementation_items` | Add `started_at`, `notes` | 3 |
+| `implementation_items` | Add `guide_content` | 11 |
 | `audit_sessions` | Add `archived_at` | 5 |
+| `audit_sessions` | Add `previous_session_id` | 8 |
 | `reports` | Add `archived_at` | 5 |
 | `reports` | Add `share_token`, `is_shared` | 6.2 |
+| `profiles` | Add `hourly_rate` | 10 |

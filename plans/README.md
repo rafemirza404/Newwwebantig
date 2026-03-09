@@ -1,3 +1,5 @@
+> ⚠️ **HISTORICAL DOCUMENT** — This is the original product vision spec. It reflects intended design and features but is NOT current state. For current progress, see `plans/applicationmajorfixes.md`. Tech stack listed here (Anthropic, 4 agents) is outdated — we use OpenAI + 7 agents.
+
 # COMPLETE PRODUCT MASTER PLAN
 ## AI Business Audit Platform — Mevolut UI Edition
 **Every page. Every navigation item. Final version.**

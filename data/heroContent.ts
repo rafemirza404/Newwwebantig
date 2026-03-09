@@ -17,29 +17,29 @@ export const heroContent = {
             id: "profiler",
             name: "Business Profiler",
             // position + z-index only — visual treatment handled in FloatingCards
-            positionClass: "top-[8px] right-[-6px] xl:right-[6px] z-0",
+            positionClass: "top-[60px] right-[30px] xl:right-[55px]",
             content: "Business profile captured across 8 key functions...\n\nScan Complete\n• Marketing: High manual workload detected\n• Sales: 4 automation gaps flagged",
             logoColor: "text-[#D97757]",
         },
         {
             id: "gap-analyzer",
             name: "Gap Analyzer",
-            positionClass: "left-[4px] top-[165px] z-10",
+            positionClass: "top-[210px] left-[10px] xl:left-[30px]",
             content: "Revenue Impact Ranking\n\n• Email follow-up: Manual — $1,800/mo lost\n• Lead scoring: Not configured, 40% drop-off\n• CRM sync: Disconnected tools detected...",
             logoColor: "text-[#22B8CD]",
         },
         {
             id: "report",
             name: "Audit Report",
-            positionClass: "right-[4px] top-[285px] xl:right-[18px] z-20",
+            positionClass: "top-[355px] right-[20px] xl:right-[45px]",
             content: "Your Top AI Audit Findings\n\n1. Marketing Automation\n• Impact: $2,400/mo opportunity\n• Tool: ActiveCampaign or HubSpot\n• Timeline: 1–2 weeks to implement",
             logoColor: "text-[#FFFFFF]",
         }
     ],
     navLinks: [
-        { label: "Solutions", href: "#",       hasChildren: true  },
-        { label: "Resources", href: "#",       hasChildren: true  },
-        { label: "Company",   href: "#",       hasChildren: true  },
-        { label: "Pricing",   href: "/pricing", hasChildren: false },
+        { label: "Solutions", href: "#", hasChildren: true },
+        { label: "Resources", href: "#", hasChildren: true },
+        { label: "Company", href: "#", hasChildren: true },
+        { label: "Pricing", href: "/pricing", hasChildren: false },
     ]
 };

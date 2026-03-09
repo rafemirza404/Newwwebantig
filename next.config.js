@@ -19,7 +19,7 @@ const nextConfig = {
   },
   // Allow @anthropic-ai/sdk to run server-side only
   experimental: {
-    serverComponentsExternalPackages: ['@anthropic-ai/sdk'],
+    serverComponentsExternalPackages: ['@anthropic-ai/sdk', '@react-pdf/renderer'],
   },
 };
 

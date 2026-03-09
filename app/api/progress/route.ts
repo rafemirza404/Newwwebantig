@@ -14,9 +14,21 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Invalid itemId or status" }, { status: 400 });
     }
 
+    const now = new Date().toISOString();
+    const updates: Record<string, unknown> = { status };
+
+    if (status === "in_progress") {
+      updates.started_at = now;
+    } else if (status === "done") {
+      updates.completed_at = now;
+    } else if (status === "not_started") {
+      updates.started_at = null;
+      updates.completed_at = null;
+    }
+
     const { error } = await supabase
       .from("implementation_items")
-      .update({ status })
+      .update(updates)
       .eq("id", itemId)
       .eq("user_id", user.id);
 

@@ -47,7 +47,7 @@ function DiagramCard({ diagram }: { diagram: Diagram }) {
   }, [diagram]);
 
   return (
-    <div className="bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] rounded-2xl overflow-hidden">
+    <div data-diagram-card className="bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] rounded-2xl overflow-hidden">
       <div className="px-6 py-5 border-b border-border/20 flex items-center gap-3">
         <GitBranch className="w-4 h-4 text-primary" />
         <div>
